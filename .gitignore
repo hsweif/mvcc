@@ -34,3 +34,4 @@
 # Editor and compilation
 .idea
 cmake-build-debug
+*.DS_Store

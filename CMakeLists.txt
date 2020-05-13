@@ -2,7 +2,7 @@
 # Basic project information and versions
 project(mvcc)
 cmake_minimum_required(VERSION 3.2.0)
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 #######################################################
@@ -49,9 +49,6 @@ if (CMAKE_VERSION VERSION_LESS 2.8.11)
     include_directories("${gtest_SOURCE_DIR}/include")
 endif ()
 
-# add_executable(example tests/example.cpp)
-# target_link_libraries(all_test gtest_main)
-# add_test(NAME example COMMAND example)
 
 #######################################################
 # glog
@@ -93,5 +90,10 @@ add_executable(main src/main.cpp)
 target_link_libraries(main ${ALL_MVCC_LIBS})
 
 
+#######################################################
+# Setup unit test
+add_executable(test_parser tests/test_parser.cpp)
+target_link_libraries(test_parser gtest_main ${ALL_MVCC_LIBS})
+add_test(NAME TestParser COMMAND test_parser)
 
 
