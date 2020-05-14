@@ -41,7 +41,7 @@ Operation Parser::ParseOperation(const std::string &line) const {
     std::string operation;
     iss >> operation;
     int txn;
-    VAL_TYPE val;
+    ValueType val;
     std::string key;
     if (operation == "BEGIN") {
         iss >> txn;

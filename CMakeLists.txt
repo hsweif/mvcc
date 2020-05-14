@@ -4,6 +4,8 @@ project(mvcc)
 cmake_minimum_required(VERSION 3.2.0)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
 
 #######################################################
 # Check submodule directories
@@ -70,11 +72,15 @@ include_directories(src)
 
 set(MVCC_SOURCES
         src/parser.cpp
+        src/database.cpp
+        src/txn_manager.cpp
         )
 
 set(MVCC_HEADERS
         src/fwd.h
         src/parser.h
+        src/database.h
+        src/txn_manager.h
         )
 
 add_library(mvcc STATIC
@@ -85,6 +91,7 @@ add_library(mvcc STATIC
 set(ALL_MVCC_LIBS
         glog
         mvcc
+        Threads::Threads
         )
 add_executable(main src/main.cpp)
 target_link_libraries(main ${ALL_MVCC_LIBS})
@@ -92,8 +99,13 @@ target_link_libraries(main ${ALL_MVCC_LIBS})
 
 #######################################################
 # Setup unit test
-add_executable(test_parser tests/test_parser.cpp)
-target_link_libraries(test_parser gtest_main ${ALL_MVCC_LIBS})
-add_test(NAME TestParser COMMAND test_parser)
+set(MVCC_TESTS
+        tests/test_parser.cpp
+        tests/test_txnmanager.cpp
+        tests/test_database.cpp
+        )
+add_executable(test_all ${MVCC_TESTS})
+target_link_libraries(test_all gtest_main ${ALL_MVCC_LIBS})
+add_test(NAME TestAll COMMAND test_all)
 
 

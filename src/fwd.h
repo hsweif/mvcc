@@ -8,13 +8,33 @@
 
 #include <string>
 #include <vector>
+#include <list>
+#include <limits>
+#include <memory>
+#include <ctime>
+#include <chrono>
+#include <iostream>
 #include <glog/logging.h>
 
 
 namespace mvcc {
 
-typedef int VAL_TYPE;
 
+typedef int ValueType;
+typedef std::string KeyType;
+typedef uint32_t TxnId;
+typedef uint64_t TxnStamp;
+
+// Used for initialization in assignment 1
+const static TxnId INSERT_NO_ID = std::numeric_limits<TxnId>::max();
+
+inline TxnStamp GetTimeStamp() {
+    auto now = std::chrono::high_resolution_clock::now();
+    uint64_t nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
+    return nanos;
+}
+
+// TODO: Add abort in assignment 3?
 enum class OP {
     READ,
     BEGIN,
@@ -34,18 +54,18 @@ enum class MathOp {
 
 struct Operation {
     OP op;
-    std::string key;
+    KeyType key;
     MathOp mathOp; // + - * /
-    VAL_TYPE value;
+    ValueType value;
 
     Operation() : op(OP::INVALID), mathOp(MathOp::INVALID) {}
 
-    Operation(OP op, VAL_TYPE txn) : op(op), value(txn) {
+    Operation(OP op, ValueType txn) : op(op), value(txn) {
         // Used for initialize the txn operation
         DCHECK(op == OP::BEGIN || op == OP::COMMIT);
     }
 
-    Operation(OP op, std::string key, VAL_TYPE value = 0, MathOp mOp = MathOp::INVALID) :
+    Operation(OP op, KeyType key, ValueType value = 0, MathOp mOp = MathOp::INVALID) :
             op(op), key(std::move(key)), value(value), mathOp(mOp) {
         if (op == OP::SET)
             DCHECK(mathOp != MathOp::INVALID);
@@ -54,12 +74,38 @@ struct Operation {
 
 struct Txn {
     std::vector<Operation> operations;
-    int txnId;
+    bool commited;
+    TxnId txnId;
 
-    Txn(int id) : txnId(id) {}
+    Txn(TxnId id) : txnId(id), commited(false) {}
 
     void AddOp(const Operation &op) { operations.push_back(op); }
 };
+
+struct TxnResult {
+    typedef std::pair<TxnStamp, ValueType> ReadRes;
+    TxnId txnId;
+    std::vector<ReadRes> readRes;
+    TxnStamp startStamp, endStamp;
+};
+
+struct TxnLog {
+    TxnId id;
+    ValueType val;
+    TxnStamp stamp;
+    bool commited;
+
+    TxnLog(TxnId id, ValueType val, TxnStamp stamp, bool commited = false) :
+            id(id), val(val), stamp(stamp), commited(commited) {}
+};
+
+class Parser;
+
+class Database;
+
+class MemoryDB;
+
+class TxnLogBuffer;
 
 }
 
