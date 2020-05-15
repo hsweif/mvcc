@@ -8,6 +8,14 @@
 
 namespace mvcc {
 
+class TestTxnManager: public ::testing::Test
+{
+protected:
+    void SetUp() override
+    {
+    }
+};
+
 
 TEST(TestTxnBuffer, TestAddLxnLog)
 {

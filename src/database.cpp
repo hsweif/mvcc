@@ -3,10 +3,16 @@
 //
 
 #include "database.h"
+#include "lock_manager.h"
 
 namespace mvcc {
 
+MemoryDB::MemoryDB() {
+    mLockManager = std::make_shared<LockManager>();
+}
+
 int MemoryDB::Insert(TxnId id, const KeyType &key, const ValueType &val) {
+    // Should add mutex in following assignments
     auto iter = mStorage.find(key);
     DCHECK_EQ(id, INSERT_NO_ID); // for assignment 1 because only preparation contains insert
     if (iter == mStorage.end()) {
@@ -44,6 +50,8 @@ int MemoryDB::Read(TxnId id, const KeyType &key, std::shared_ptr<TxnLog> &res) c
 int MemoryDB::Update(TxnId id, const KeyType &key, MathOp mOP,
                      const ValueType &val, std::shared_ptr<TxnLog> &res) {
     // TODO: Add lock.
+    std::lock_guard<std::mutex> lockGuard(*mLockManager->GetLock(key));
+
     auto iter = mStorage.find(key);
     if (iter == mStorage.end()) {
         return 1;
@@ -52,6 +60,7 @@ int MemoryDB::Update(TxnId id, const KeyType &key, MathOp mOP,
     if (logList.size() == 0) {
         return 1;
     }
+
     auto logIter = std::prev(logList.end());
     while ((*logIter)->id != id && !(*logIter)->commited && logIter != logList.begin()) {
         logIter = std::prev(logIter);
@@ -73,6 +82,21 @@ int MemoryDB::Update(TxnId id, const KeyType &key, MathOp mOP,
     res = std::make_shared<TxnLog>(id, newVal, mvcc::GetTimeStamp());
     logList.push_back(res);
     return 0;
+}
+
+std::ostream &operator<<(std::ostream &output, const MemoryDB &memoryDB) {
+    output << "- - - - - - - - - - - - - - - - - - - - - - " << std::endl;
+    output << "Database status at " << mvcc::GetTimeStamp() << std::endl;
+    for(auto &item: memoryDB.mStorage) {
+        const KeyType &key = item.first;
+        const MemoryDB::LogList &logList = item.second;
+        auto iter = std::prev(logList.end());
+        while(!(*iter)->commited && iter != logList.begin()) {
+            iter = std::prev(iter);
+        }
+        output << "  " << key << ": " << (*iter)->val << ", by txn_id " << (*iter)->id << ", at " << (*iter)->stamp << std::endl;
+    }
+    return output;
 }
 
 

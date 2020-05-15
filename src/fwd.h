@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 #include <list>
+#include <map>
 #include <limits>
 #include <memory>
 #include <ctime>
@@ -82,12 +83,35 @@ struct Txn {
     void AddOp(const Operation &op) { operations.push_back(op); }
 };
 
+
 struct TxnResult {
-    typedef std::pair<TxnStamp, ValueType> ReadRes;
+    struct ReadRes {
+        KeyType key;
+        ValueType val;
+        TxnStamp stamp;
+
+        ReadRes(KeyType key, ValueType val, TxnStamp stamp) : key(key), val(val), stamp(stamp) {}
+    };
+
     TxnId txnId;
     std::vector<ReadRes> readRes;
     TxnStamp startStamp, endStamp;
 };
+
+inline std::ostream &operator<<(std::ostream &output, const TxnResult::ReadRes &readRes)
+{
+    output << readRes.key << "'s value is " << readRes.val
+        << ". Operation's timestamp is " << readRes.stamp;
+}
+
+inline std::ostream &operator<<(std::ostream &output, const TxnResult &txnResult) {
+    output << txnResult.txnId << ", BEGIN, " << txnResult.startStamp << ", ," << std::endl;
+    for (auto &res: txnResult.readRes) {
+        output << txnResult.txnId << ", " << res.key << ", " << res.stamp << ", " << res.val << std::endl;
+    }
+    output << txnResult.txnId << ", END, " << txnResult.endStamp << ", ," << std::endl;
+    return output;
+}
 
 struct TxnLog {
     TxnId id;
@@ -106,6 +130,8 @@ class Database;
 class MemoryDB;
 
 class TxnLogBuffer;
+
+class LockManager;
 
 }
 

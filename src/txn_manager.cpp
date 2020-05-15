@@ -17,25 +17,40 @@ void TxnLogBuffer::Commit() const {
     }
 }
 
-TxnManager::TxnManager(std::shared_ptr<MemoryDB> &database) {
-    mDatabase = std::shared_ptr<MemoryDB>(database);
+TxnManager::TxnManager(const std::shared_ptr<Database> &database,
+                       const std::shared_ptr<std::vector<TxnId>> &txnOrders) {
+    mDatabase = std::shared_ptr<Database>(database);
+    mTxnOrders = std::shared_ptr<std::vector<TxnId>>(txnOrders);
 }
 
 int TxnManager::Execute(const Txn &txn, TxnResult &txnResult) {
     DCHECK(txnResult.readRes.empty());
-    TxnLogBuffer txnLogBuffer(txn.txnId);
+    const TxnId &id = txn.txnId;
+    txnResult.txnId = id;
+    TxnLogBuffer txnLogBuffer(id);
+    std::vector<TxnResult::ReadRes> tmpRes;
     txnResult.startStamp = GetTimeStamp();
-    for(auto &operation: txn.operations)
-    {
-        if(operation.op == OP::SET) {
-
-        } else if(operation.op == OP::READ) {
-
-        } else{
+    int ret = 0;
+    for (auto &operation: txn.operations) {
+        std::shared_ptr<TxnLog> txnLog;
+        if (operation.op == OP::SET) {
+            ret = mDatabase->Update(id, operation.key, operation.mathOp, operation.value, txnLog);
+        } else if (operation.op == OP::READ) {
+            ret = mDatabase->Read(id, operation.key, txnLog);
+            tmpRes.emplace_back(operation.key, txnLog->val, txnLog->stamp);
+        } else {
             // Invalid operation in assignment 1;
             LOG(WARNING) << "Invalid operation: in txn " << txn.txnId;
+            return 1;
         }
+        if (ret) {
+            return ret;
+        }
+        txnLogBuffer.AddTxnLog(txnLog);
     }
+    txnLogBuffer.Commit();
+    mTxnOrders->emplace_back(id);
+    txnResult.readRes = std::vector<TxnResult::ReadRes>(tmpRes);
     txnResult.endStamp = GetTimeStamp();
     return 0;
 }

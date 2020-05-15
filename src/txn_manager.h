@@ -28,11 +28,12 @@ private:
 
 class TxnManager {
 public:
-    TxnManager(std::shared_ptr<MemoryDB> &database);
+    TxnManager(const std::shared_ptr<Database> &database, const std::shared_ptr<std::vector<TxnId>> &txnOrders);
     int Execute(const Txn &txn, TxnResult &txnResult);
 
 private:
     std::shared_ptr<Database> mDatabase;
+    std::shared_ptr<std::vector<TxnId>> mTxnOrders;
 };
 
 }
