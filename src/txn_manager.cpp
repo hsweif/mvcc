@@ -13,7 +13,7 @@ void TxnLogBuffer::AddTxnLog(std::shared_ptr<TxnLog> &txnLog) {
 
 void TxnLogBuffer::Commit() const {
     for (auto &txnIter: pool) {
-        txnIter->commited = true;
+        txnIter->committed = true;
     }
 }
 
@@ -37,7 +37,9 @@ int TxnManager::Execute(const Txn &txn, TxnResult &txnResult) {
             ret = mDatabase->Update(id, operation.key, operation.mathOp, operation.value, txnLog);
         } else if (operation.op == OP::READ) {
             ret = mDatabase->Read(id, operation.key, txnLog);
-            tmpRes.emplace_back(operation.key, txnLog->val, txnLog->stamp);
+            if (ret)
+                return ret;
+            tmpRes.emplace_back(operation.key, txnLog->val, GetTimeStamp());
         } else {
             // Invalid operation in assignment 1;
             LOG(WARNING) << "Invalid operation: in txn " << txn.txnId;

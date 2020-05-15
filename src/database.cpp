@@ -18,7 +18,7 @@ int MemoryDB::Insert(TxnId id, const KeyType &key, const ValueType &val) {
     if (iter == mStorage.end()) {
         // Not existed in the database before.
         mStorage[key] = LogList();
-        // Always true in assignment 1 because insertion does not belong to any txn
+        // FIXME: Always true in assignment 1 because insertion does not belong to any txn
         auto txnLog = std::make_shared<TxnLog>(id, val, mvcc::GetTimeStamp(), true);
         mStorage[key].push_back(std::move(txnLog));
         return 0;
@@ -36,12 +36,12 @@ int MemoryDB::Read(TxnId id, const KeyType &key, std::shared_ptr<TxnLog> &res) c
     auto &logList = iter->second;
     size_t sz = logList.size();
     auto logIter = std::prev(logList.end());
-    // Find the newest commited txn log.
-    // Or uncommited data within the same txn
-    while ((*logIter)->id != id && !(*logIter)->commited && logIter != logList.begin()) {
+    // Find the newest committed txn log.
+    // Or uncommitted data within the same txn
+    while ((*logIter)->id != id && !(*logIter)->committed && logIter != logList.begin()) {
         logIter = std::prev(logIter);
     }
-    if (!(*logIter)->commited)
+    if (!(*logIter)->committed && (*logIter)->id != id)
         return 1;
     res = std::shared_ptr<TxnLog>(*logIter);
     return 0;
@@ -62,7 +62,7 @@ int MemoryDB::Update(TxnId id, const KeyType &key, MathOp mOP,
     }
 
     auto logIter = std::prev(logList.end());
-    while ((*logIter)->id != id && !(*logIter)->commited && logIter != logList.begin()) {
+    while ((*logIter)->id != id && !(*logIter)->committed && logIter != logList.begin()) {
         logIter = std::prev(logIter);
     }
     ValueType newVal = (*logIter)->val;
@@ -91,7 +91,7 @@ std::ostream &operator<<(std::ostream &output, const MemoryDB &memoryDB) {
         const KeyType &key = item.first;
         const MemoryDB::LogList &logList = item.second;
         auto iter = std::prev(logList.end());
-        while(!(*iter)->commited && iter != logList.begin()) {
+        while(!(*iter)->committed && iter != logList.begin()) {
             iter = std::prev(iter);
         }
         output << "  " << key << ": " << (*iter)->val << ", by txn_id " << (*iter)->id << ", at " << (*iter)->stamp << std::endl;

@@ -25,14 +25,14 @@ TEST_F(TestMemoryDB, TestSuccessRead)
     TxnId txnId = 0;
     int ret = mDb->Read(txnId, "test", res);
     EXPECT_EQ(ret, 0);
-    EXPECT_EQ(res->commited, true);
+    EXPECT_EQ(res->committed, true);
     EXPECT_EQ(res->val,23);
     TxnStamp stamp1, stamp2;
     stamp1 = res->stamp;
     ret = mDb->Read(txnId, "aa", res);
     EXPECT_EQ(ret, 0);
     stamp2 = res->stamp;
-    EXPECT_EQ(res->commited, true);
+    EXPECT_EQ(res->committed, true);
     EXPECT_EQ(res->val,-666);
     EXPECT_LT(stamp1, stamp2);
     EXPECT_LT(stamp2, mvcc::GetTimeStamp());

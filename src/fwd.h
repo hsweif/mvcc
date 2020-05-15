@@ -75,10 +75,10 @@ struct Operation {
 
 struct Txn {
     std::vector<Operation> operations;
-    bool commited;
+    bool committed;
     TxnId txnId;
 
-    Txn(TxnId id) : txnId(id), commited(false) {}
+    Txn(TxnId id) : txnId(id), committed(false) {}
 
     void AddOp(const Operation &op) { operations.push_back(op); }
 };
@@ -98,10 +98,9 @@ struct TxnResult {
     TxnStamp startStamp, endStamp;
 };
 
-inline std::ostream &operator<<(std::ostream &output, const TxnResult::ReadRes &readRes)
-{
+inline std::ostream &operator<<(std::ostream &output, const TxnResult::ReadRes &readRes) {
     output << readRes.key << "'s value is " << readRes.val
-        << ". Operation's timestamp is " << readRes.stamp;
+           << ". Operation's timestamp is " << readRes.stamp;
 }
 
 inline std::ostream &operator<<(std::ostream &output, const TxnResult &txnResult) {
@@ -117,10 +116,10 @@ struct TxnLog {
     TxnId id;
     ValueType val;
     TxnStamp stamp;
-    bool commited;
+    bool committed;
 
-    TxnLog(TxnId id, ValueType val, TxnStamp stamp, bool commited = false) :
-            id(id), val(val), stamp(stamp), commited(commited) {}
+    TxnLog(TxnId id, ValueType val, TxnStamp stamp, bool committed = false) :
+            id(id), val(val), stamp(stamp), committed(committed) {}
 };
 
 class Parser;
