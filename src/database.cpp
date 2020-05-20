@@ -7,20 +7,78 @@
 
 namespace mvcc {
 
-MemoryDB::MemoryDB() {
+int LogList::AddData(TxnLog txnLog, int &index) {
+    logs[curItem] = txnLog;
+    index = curItem;
+    curItem++;
+    if (curItem >= maxItem)
+        curItem = 0;
+    return 0;
+}
+
+int LogList::GetNewestLog(TxnId id, TxnLog &txnLog, const TxnStamp &readStamp,
+                          const Database *database) const {
+    int curIndex = curItem == 0 ? maxItem - 1 : curItem - 1;
+    DCHECK_GE(curIndex, 0);
+    DCHECK_LT(curIndex, maxItem);
+    int cnt = 0;
+    while ((logs[curIndex].id != INSERT_NO_ID && readStamp < logs[curIndex].stamp)
+           || !database->Committed(logs[curIndex].id)) { // FIXME: Should not be equal
+        if (curIndex == 0) {
+            curIndex = maxItem;
+        }
+        curIndex--;
+        cnt++;
+        if (logs[curIndex].id == INVALID_ID || cnt > maxItem) {
+            return 1;
+        }
+    }
+    txnLog = logs[curIndex];
+    return 0;
+}
+
+
+int LogList::AddData(const TxnLog &txnLog) {
+    if (curItem >= maxItem)
+        curItem = 0;
+    logs[curItem] = txnLog;
+    curItem++;
+    return 0;
+}
+
+std::shared_ptr<std::mutex> Database::RequestUpdate(const KeyType &key) {
+    return mLockManager->GetLock(key);
+}
+
+Database::Database() {
     mLockManager = std::make_shared<LockManager>();
+    mLock = std::make_shared<std::mutex>();
+    memset(commitStatus, 1, sizeof(commitStatus));
+}
+
+std::shared_ptr<std::mutex> Database::RequestDbLock() {
+    return mLock;
+}
+
+void Database::BeginTxn(TxnId id, bool includeSet) {
+    std::lock_guard<std::mutex> lockGuard(commitLock);
+    if (includeSet) {
+        commitStatus[id % hashSize] = false;
+    }
+}
+
+MemoryDB::MemoryDB() {
 }
 
 int MemoryDB::Insert(TxnId id, const KeyType &key, const ValueType &val) {
     // Should add mutex in following assignments
     auto iter = mStorage.find(key);
     DCHECK_EQ(id, INSERT_NO_ID); // for assignment 1 because only preparation contains insert
+    int index;
     if (iter == mStorage.end()) {
         // Not existed in the database before.
         mStorage[key] = LogList();
-        // FIXME: Always true in assignment 1 because insertion does not belong to any txn
-        auto txnLog = std::make_shared<TxnLog>(id, val, mvcc::GetTimeStamp(), true);
-        mStorage[key].push_back(std::move(txnLog));
+        mStorage[key].AddData(TxnLog(id, key, val, mvcc::GetTxnStamp(), true), index);
         return 0;
     } else {
         // Fail. You cannot insert an existed key.
@@ -28,75 +86,53 @@ int MemoryDB::Insert(TxnId id, const KeyType &key, const ValueType &val) {
     }
 }
 
-int MemoryDB::Read(TxnId id, const KeyType &key, std::shared_ptr<TxnLog> &res) const {
+int MemoryDB::Read(TxnId id, const KeyType &key, TxnLog &res, const TxnStamp &readStamp) const {
     auto iter = mStorage.find(key);
     if (iter == mStorage.end()) {
         return 1;
     }
-    auto &logList = iter->second;
-    size_t sz = logList.size();
-    auto logIter = std::prev(logList.end());
-    // Find the newest committed txn log.
-    // Or uncommitted data within the same txn
-    while ((*logIter)->id != id && !(*logIter)->committed && logIter != logList.begin()) {
-        logIter = std::prev(logIter);
-    }
-    if (!(*logIter)->committed && (*logIter)->id != id)
-        return 1;
-    res = std::shared_ptr<TxnLog>(*logIter);
-    return 0;
+    const LogList &logList = iter->second;
+    int ret = logList.GetNewestLog(id, res, readStamp, this);
+    return ret;
 }
 
-int MemoryDB::Update(TxnId id, const KeyType &key, MathOp mOP,
-                     const ValueType &val, std::shared_ptr<TxnLog> &res) {
-    // TODO: Add lock.
-    std::lock_guard<std::mutex> lockGuard(*mLockManager->GetLock(key));
-
-    auto iter = mStorage.find(key);
-    if (iter == mStorage.end()) {
-        return 1;
-    }
-    auto &logList = iter->second;
-    if (logList.size() == 0) {
-        return 1;
-    }
-
-    auto logIter = std::prev(logList.end());
-    while ((*logIter)->id != id && !(*logIter)->committed && logIter != logList.begin()) {
-        logIter = std::prev(logIter);
-    }
-    ValueType newVal = (*logIter)->val;
-    if (mOP == MathOp::PLUS) {
-        newVal += val;
-    } else if (mOP == MathOp::MINUS) {
-        newVal -= val;
-    } else if (mOP == MathOp::TIMES) {
-        newVal *= val;
-    } else if (mOP == MathOp::DIVIDE) {
-        if (val == 0) {
-            LOG(ERROR) << "Invalid operation: Divide 0 in txn " << id;
-            return 1;
-        }
-        newVal /= val;
-    }
-    res = std::make_shared<TxnLog>(id, newVal, mvcc::GetTimeStamp());
-    logList.push_back(res);
-    return 0;
-}
 
 std::ostream &operator<<(std::ostream &output, const MemoryDB &memoryDB) {
     output << "- - - - - - - - - - - - - - - - - - - - - - " << std::endl;
-    output << "Database status at " << mvcc::GetTimeStamp() << std::endl;
-    for(auto &item: memoryDB.mStorage) {
+    output << "Database status at " << mvcc::GetTxnStamp() << std::endl;
+    for (auto &item: memoryDB.mStorage) {
         const KeyType &key = item.first;
-        const MemoryDB::LogList &logList = item.second;
-        auto iter = std::prev(logList.end());
-        while(!(*iter)->committed && iter != logList.begin()) {
-            iter = std::prev(iter);
-        }
-        output << "  " << key << ": " << (*iter)->val << ", by txn_id " << (*iter)->id << ", at " << (*iter)->stamp << std::endl;
+        const LogList &logList = item.second;
+        TxnLog readLog;
+        logList.GetNewestLog(INSERT_NO_ID, readLog, mvcc::GetTxnStamp(), &memoryDB);
+        output << "  " << key << ": " << readLog.val << ", by txn_id " << readLog.id << ", at " << readLog.stamp
+               << std::endl;
     }
     return output;
+}
+
+
+int MemoryDB::CommitUpdates(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp) {
+    std::lock_guard<std::mutex> lockGuard(commitLock);
+    commitStamp = mvcc::GetTxnStamp();
+    for (auto &logItem: logs) {
+        // TODO: Handling exceptions.
+        auto &log = logItem.second;
+        int ret = this->Update(log.id, log.key, log.val, commitStamp);
+        DCHECK_EQ(ret, 0);
+    }
+    commitStatus[id % hashSize] = true;
+    return 0;
+}
+
+int MemoryDB::Update(TxnId id, const KeyType &key, ValueType val, const TxnStamp &stamp) {
+    auto iter = mStorage.find(key);
+    if (iter == mStorage.end()) {
+        return 1;
+    }
+    LogList &logList = iter->second;
+    logList.AddData(TxnLog(id, key, val, stamp));
+    return 0;
 }
 
 

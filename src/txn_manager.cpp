@@ -7,53 +7,112 @@
 
 namespace mvcc {
 
-void TxnLogBuffer::AddTxnLog(std::shared_ptr<TxnLog> &txnLog) {
-    pool.push_back(std::move(std::shared_ptr<TxnLog>(txnLog)));
+void TxnLogBuffer::AddTxnLog(const KeyType &key, size_t index) {
+    pool.emplace_back(key, index);
 }
 
-void TxnLogBuffer::Commit() const {
-    for (auto &txnIter: pool) {
-        txnIter->committed = true;
+bool TxnLogBuffer::FindPrevRead(KeyType key, ValueType &prevRes) {
+    auto iter = cacheVal.find(key);
+    if (iter == cacheVal.end()) {
+        return false;
     }
+    prevRes = iter->second;
+    return true;
 }
 
-TxnManager::TxnManager(const std::shared_ptr<Database> &database,
-                       const std::shared_ptr<std::vector<TxnId>> &txnOrders) {
+void TxnLogBuffer::UpdateCacheVal(KeyType key, const ValueType &val) {
+    cacheVal[key] = val;
+}
+
+TxnManager::TxnManager(std::shared_ptr<Database> database,
+                       std::shared_ptr<std::vector<TxnId>> txnOrders) {
     mDatabase = std::shared_ptr<Database>(database);
-    mTxnOrders = std::shared_ptr<std::vector<TxnId>>(txnOrders);
 }
 
 int TxnManager::Execute(const Txn &txn, TxnResult &txnResult) {
-    DCHECK(txnResult.readRes.empty());
+    DCHECK(txnResult.opRes.empty());
     const TxnId &id = txn.txnId;
     txnResult.txnId = id;
     TxnLogBuffer txnLogBuffer(id);
-    std::vector<TxnResult::ReadRes> tmpRes;
-    txnResult.startStamp = GetTimeStamp();
-    int ret = 0;
+    std::vector<TxnResult::OpRes> tmpRes;
+    std::map<KeyType, TxnLog> updateLogs;
+    std::vector<std::shared_ptr<std::mutex>> locks;
+    std::unique_ptr<std::lock_guard<std::mutex>> lockGuard = nullptr;
+    bool includeSet = false;
     for (auto &operation: txn.operations) {
-        std::shared_ptr<TxnLog> txnLog;
         if (operation.op == OP::SET) {
-            ret = mDatabase->Update(id, operation.key, operation.mathOp, operation.value, txnLog);
+            std::shared_ptr<std::mutex> dbMutex = mDatabase->RequestDbLock();
+            lockGuard = std::make_unique<std::lock_guard<std::mutex>>(*dbMutex);
+            includeSet = true;
+            break;
+        }
+    }
+    mDatabase->BeginTxn(id, includeSet);
+
+    txnResult.startStamp = GetTxnStamp();
+    int ret = 0;
+
+    for (auto &operation: txn.operations) {
+        TxnLog txnLog;
+        auto &key = operation.key;
+        if (operation.op == OP::SET) {
+            ValueType value;
+            if (!txnLogBuffer.FindPrevRead(key, value)) {
+                mDatabase->Read(id, key, txnLog, txnResult.startStamp); // FIXME
+                value = txnLog.val;
+            }
+            auto &mOp = operation.mathOp;
+            switch (mOp) {
+                case MathOp::PLUS:
+                    value += operation.value;
+                    break;
+                case MathOp::MINUS:
+                    value -= operation.value;
+                    break;
+                case MathOp::TIMES:
+                    value *= operation.value;
+                    break;
+                case MathOp::DIVIDE:
+                    DCHECK_NE(operation.value, 0);
+                    if (operation.value == 0) {
+                        LOG(ERROR) << "Invalid operation: Divide 0 in txn " << id;
+                        ret = 1;
+                    }
+                    value /= operation.value;
+                    break;
+                default:
+                    LOG(WARNING) << "Invalid operation";
+                    ret = 1;
+                    break;
+            }
+            TxnStamp setStamp = mvcc::GetTxnStamp();
+            updateLogs[key] = TxnLog(id, key, value, setStamp);
+            tmpRes.emplace_back(operation.op, key, value, setStamp);
+            txnLogBuffer.UpdateCacheVal(key, value);
         } else if (operation.op == OP::READ) {
-            ret = mDatabase->Read(id, operation.key, txnLog);
-            if (ret)
-                return ret;
-            tmpRes.emplace_back(operation.key, txnLog->val, GetTimeStamp());
+            ValueType value;
+            TxnStamp readStamp = mvcc::GetTxnStamp();
+            if (!txnLogBuffer.FindPrevRead(key, value)) {
+                mDatabase->Read(id, key, txnLog, txnResult.startStamp); // FIXME: Which stamp is right?
+                value = txnLog.val;
+                txnLogBuffer.UpdateCacheVal(key, value);
+            }
+            tmpRes.emplace_back(operation.op, key, value, readStamp);
         } else {
             // Invalid operation in assignment 1;
-            LOG(WARNING) << "Invalid operation: in txn " << txn.txnId;
+            LOG(WARNING) << "Invalid operation in txn: " << txn.txnId;
             return 1;
         }
         if (ret) {
             return ret;
         }
-        txnLogBuffer.AddTxnLog(txnLog);
     }
-    txnLogBuffer.Commit();
-    mTxnOrders->emplace_back(id);
-    txnResult.readRes = std::vector<TxnResult::ReadRes>(tmpRes);
-    txnResult.endStamp = GetTimeStamp();
+    txnResult.opRes = std::vector<TxnResult::OpRes>(tmpRes);
+    if (lockGuard != nullptr) {
+        mDatabase->CommitUpdates(id, updateLogs, txnResult.endStamp);
+    } else {
+        txnResult.endStamp = mvcc::GetTxnStamp();
+    }
     return 0;
 }
 

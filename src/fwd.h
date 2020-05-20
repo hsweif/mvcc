@@ -13,6 +13,7 @@
 #include <limits>
 #include <memory>
 #include <ctime>
+#include <mutex>
 #include <chrono>
 #include <iostream>
 #include <glog/logging.h>
@@ -28,11 +29,16 @@ typedef uint64_t TxnStamp;
 
 // Used for initialization in assignment 1
 const static TxnId INSERT_NO_ID = std::numeric_limits<TxnId>::max();
+const static TxnId INVALID_ID = std::numeric_limits<TxnId>::max() - 1;
 
-inline TxnStamp GetTimeStamp() {
-    auto now = std::chrono::high_resolution_clock::now();
-    uint64_t nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
-    return nanos;
+static TxnStamp curStamp = 0;
+
+inline TxnStamp GetTxnStamp() {
+    // auto now = std::chrono::high_resolution_clock::now();
+    // uint64_t nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
+    // return nanos;
+    // return clock();
+    return curStamp++;
 }
 
 // TODO: Add abort in assignment 3?
@@ -80,46 +86,65 @@ struct Txn {
 
     Txn(TxnId id) : txnId(id), committed(false) {}
 
+    Txn(TxnId id, std::vector<Operation> &operations) : txnId(id), operations(operations), committed(false) {}
+
     void AddOp(const Operation &op) { operations.push_back(op); }
 };
 
 
 struct TxnResult {
-    struct ReadRes {
+    struct OpRes {
+        OP op;
         KeyType key;
         ValueType val;
         TxnStamp stamp;
 
-        ReadRes(KeyType key, ValueType val, TxnStamp stamp) : key(key), val(val), stamp(stamp) {}
+        OpRes(OP op, KeyType key, ValueType val, TxnStamp stamp) :
+                op(op), key(key), val(val), stamp(stamp) {}
     };
 
     TxnId txnId;
-    std::vector<ReadRes> readRes;
+    std::vector<OpRes> opRes;
     TxnStamp startStamp, endStamp;
 };
 
-inline std::ostream &operator<<(std::ostream &output, const TxnResult::ReadRes &readRes) {
-    output << readRes.key << "'s value is " << readRes.val
-           << ". Operation's timestamp is " << readRes.stamp;
+inline std::ostream &operator<<(std::ostream &output, const TxnResult::OpRes &opRes) {
+    output << opRes.key << "'s value is " << opRes.val
+           << ". Operation's timestamp is " << opRes.stamp;
 }
 
 inline std::ostream &operator<<(std::ostream &output, const TxnResult &txnResult) {
-    output << txnResult.txnId << ", BEGIN, " << txnResult.startStamp << ", ," << std::endl;
-    for (auto &res: txnResult.readRes) {
-        output << txnResult.txnId << ", " << res.key << ", " << res.stamp << ", " << res.val << std::endl;
+    output << txnResult.txnId << ",BEGIN," << txnResult.startStamp << "," << std::endl;
+    for (auto &res: txnResult.opRes) {
+        if (res.op == OP::READ) {
+            // Only care READ time stamp while using.
+            output << txnResult.txnId << "," << res.key << "," << res.stamp << "," << res.val << std::endl;
+        }
     }
-    output << txnResult.txnId << ", END, " << txnResult.endStamp << ", ," << std::endl;
+    output << txnResult.txnId << ",END," << txnResult.endStamp << "," << std::endl;
     return output;
 }
 
 struct TxnLog {
     TxnId id;
+    KeyType key;
     ValueType val;
     TxnStamp stamp;
     bool committed;
 
-    TxnLog(TxnId id, ValueType val, TxnStamp stamp, bool committed = false) :
-            id(id), val(val), stamp(stamp), committed(committed) {}
+    TxnLog(const TxnLog &txnLog) {
+        id = txnLog.id;
+        key = txnLog.key;
+        val = txnLog.val;
+        stamp = txnLog.stamp;
+        committed = txnLog.committed;
+    }
+
+    TxnLog() : id(INVALID_ID), committed(false) {}
+
+    TxnLog(TxnId id, KeyType key, ValueType val, TxnStamp stamp, bool committed = false) :
+            id(id), key(key), val(val), stamp(stamp), committed(committed) {}
+
 };
 
 class Parser;

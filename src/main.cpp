@@ -29,8 +29,8 @@ void Preparation(const std::string &fileDir, const std::string &fileName,
     }
 }
 
-void ExecuteTxns(const std::string &fileDir, int index, const std::shared_ptr<Database> &database,
-                 const std::shared_ptr<std::vector<TxnId>> &txnOrders) {
+void ExecuteTxns(const std::string &fileDir, int index, const std::shared_ptr<Database> database,
+                 const std::shared_ptr<std::vector<TxnId>> txnOrders) {
     const std::string fileName = "thread_" + std::to_string(index) + ".txt";
     LOG(INFO) << "Executing txns in " << fileName;
     Parser parser = Parser(fileDir);
@@ -49,18 +49,18 @@ void ExecuteTxns(const std::string &fileDir, int index, const std::shared_ptr<Da
         LOG(INFO) << "Txn info of " << txn.txnId << " :\n" << res;
 
         // Output read operation info.
-        if (!res.readRes.empty()) {
-            std::cout << "Results of read operations of txn " << txn.txnId << " are: " << std::endl;
-            for (auto &rRes: res.readRes) {
+        if (!res.opRes.empty()) {
+            std::cout << "Results of read operations of txn " << txn.txnId << " are: " ;
+            for (auto &rRes: res.opRes) {
                 std::cout << "  " << rRes << std::endl;
             }
         }
-
         txnResults.push_back(res);
     }
+
     LOG(INFO) << "Executed txns in " << fileName;
     std::ofstream output;
-    const std::string outputName = fileDir + "output_" + std::to_string(index) + ".csv";
+    const std::string outputName = fileDir + "output_thread_" + std::to_string(index) + ".csv";
     output.open(outputName, std::ios::out | std::ios::trunc);
     output << "transaction_id,type,time,value" << std::endl;
     for (TxnResult &txnRes: txnResults) {
@@ -72,16 +72,21 @@ void ExecuteTxns(const std::string &fileDir, int index, const std::shared_ptr<Da
 int main(int argc, char **argv) {
     // Setup glog
     google::InitGoogleLogging(argv[0]);
-    FLAGS_minloglevel = 0; // level: INFO
+    FLAGS_minloglevel = 1; // level: INFO
     FLAGS_logtostderr = true;
+
+    auto beginStamp = clock();
+
     LOG(INFO) << "Start MVCC";
-    std::string fileDir = "../data/";
+    std::string fileDir = "../data/inputs/";
 
     std::shared_ptr<Database> database = std::make_shared<MemoryDB>();
     std::shared_ptr<std::vector<TxnId>> commitOrder = std::make_shared<std::vector<TxnId>>();
     Preparation(fileDir, "data_prepare.txt", database);
 
-    const int threadNum = 3;
+    auto prepareStamp = clock();
+
+    const int threadNum = 2;
     std::thread threads[threadNum];
 
     for (int i = 0; i < threadNum; i++) {
@@ -92,12 +97,12 @@ int main(int argc, char **argv) {
         threads[i].join();
     }
 
+    auto endStamp = clock();
     std::shared_ptr<MemoryDB> mDB = std::dynamic_pointer_cast<MemoryDB>(database);
-    std::cout << "Txn commit order is: " << std::endl;
-    for(auto &id: *commitOrder) {
-        std::cout << id << " ";
-    }
     std::cout << std::endl;
     std::cout << *mDB;
+    std::cout << "- - - - - Time Spent - - - - - " << std::endl;
+    std::cout << "Preparation: " << (prepareStamp - beginStamp) * 1e-3 << " ms" << std::endl;
+    std::cout << "Executed all transactions: " << (endStamp - prepareStamp) * 1e-3 << " ms" << std::endl;
     return 0;
 }

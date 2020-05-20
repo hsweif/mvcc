@@ -33,7 +33,6 @@
 
 # Editor and compilation
 .idea
-cmake-build-debug
+cmake-build*
 *.DS_Store
 *.csv
-judge

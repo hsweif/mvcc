@@ -2,7 +2,7 @@
 # Basic project information and versions
 project(mvcc)
 cmake_minimum_required(VERSION 3.2.0)
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)

@@ -8,32 +8,39 @@
 #include "fwd.h"
 
 namespace mvcc {
+
 class TxnLogBuffer {
 public:
     TxnId id;
 
     TxnLogBuffer(TxnId id) : id(id) {}
 
-    void AddTxnLog(std::shared_ptr<TxnLog> &txnLog);
+    void AddTxnLog(const KeyType &key, size_t index);
 
-    void Commit() const;
+    // void Commit(std::shared_ptr<Database> database) const;
 
     bool Empty() const { return pool.empty(); }
 
     size_t Size() const { return pool.size(); }
 
+    bool FindPrevRead(KeyType key, ValueType &prevRes);
+
+    void UpdateCacheVal(KeyType key, const ValueType &val);
+
+
 private:
-    std::vector<std::shared_ptr<TxnLog>> pool;
+    std::vector<std::pair<KeyType, size_t>> pool;
+    std::map<KeyType, ValueType> cacheVal;
 };
 
 class TxnManager {
 public:
-    TxnManager(const std::shared_ptr<Database> &database, const std::shared_ptr<std::vector<TxnId>> &txnOrders);
+    TxnManager(std::shared_ptr<Database> database, std::shared_ptr<std::vector<TxnId>> txnOrders);
     int Execute(const Txn &txn, TxnResult &txnResult);
 
 private:
     std::shared_ptr<Database> mDatabase;
-    std::shared_ptr<std::vector<TxnId>> mTxnOrders;
+    // std::shared_ptr<std::vector<TxnId>> mTxnOrders;
 };
 
 }

@@ -8,54 +8,38 @@
 
 namespace mvcc {
 
-class TestMemoryDB: public ::testing::Test {
+class TestMemoryDB : public ::testing::Test {
 protected:
     void SetUp() override {
-        mDb = std::make_unique<MemoryDB>();
+        mDb = std::make_shared<MemoryDB>();
         mDb->Insert(INSERT_NO_ID, "test", 23);
         mDb->Insert(INSERT_NO_ID, "aa", -666);
     }
 
-    std::unique_ptr<MemoryDB> mDb;
-    std::shared_ptr<TxnLog> res;
+    std::shared_ptr<MemoryDB> mDb;
+    TxnLog res;
 };
 
-TEST_F(TestMemoryDB, TestSuccessRead)
-{
+TEST_F(TestMemoryDB, TestSuccessRead) {
     TxnId txnId = 0;
-    int ret = mDb->Read(txnId, "test", res);
+    int ret = mDb->Read(txnId, "test", res, mvcc::GetTxnStamp());
     EXPECT_EQ(ret, 0);
-    EXPECT_EQ(res->committed, true);
-    EXPECT_EQ(res->val,23);
+    EXPECT_EQ(res.committed, true);
+    EXPECT_EQ(res.val, 23);
     TxnStamp stamp1, stamp2;
-    stamp1 = res->stamp;
-    ret = mDb->Read(txnId, "aa", res);
+    stamp1 = res.stamp;
+    ret = mDb->Read(txnId, "aa", res, mvcc::GetTxnStamp());
     EXPECT_EQ(ret, 0);
-    stamp2 = res->stamp;
-    EXPECT_EQ(res->committed, true);
-    EXPECT_EQ(res->val,-666);
+    stamp2 = res.stamp;
+    EXPECT_EQ(res.committed, true);
+    EXPECT_EQ(res.val, -666);
     EXPECT_LT(stamp1, stamp2);
-    EXPECT_LT(stamp2, mvcc::GetTimeStamp());
+    EXPECT_LT(stamp2, mvcc::GetTxnStamp());
 }
 
-TEST_F(TestMemoryDB, TestFailRead)
-{
+TEST_F(TestMemoryDB, TestFailRead) {
     TxnId txnId = 0;
-    int ret = mDb->Read(txnId, "nothing", res);
-    EXPECT_EQ(ret, 1);
-}
-
-TEST_F(TestMemoryDB, TestSuccessUpdate)
-{
-    TxnId txnId = 0;
-    int ret = mDb->Update(txnId, "test", MathOp::PLUS, 7, res);
-    EXPECT_EQ(ret, 0);
-    EXPECT_EQ(res->val,30);
-}
-
-TEST_F(TestMemoryDB, TestUpdateDivideZero)
-{
-    int ret = mDb->Update(1, "test", MathOp::DIVIDE, 0, res);
+    int ret = mDb->Read(txnId, "nothing", res, mvcc::GetTxnStamp());
     EXPECT_EQ(ret, 1);
 }
 
