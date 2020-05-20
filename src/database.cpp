@@ -22,8 +22,8 @@ int LogList::GetNewestLog(TxnId id, TxnLog &txnLog, const TxnStamp &readStamp,
     DCHECK_GE(curIndex, 0);
     DCHECK_LT(curIndex, maxItem);
     int cnt = 0;
-    while ((logs[curIndex].id != INSERT_NO_ID && readStamp < logs[curIndex].stamp)
-           || !database->Committed(logs[curIndex].id)) { // FIXME: Should not be equal
+    while (logs[curIndex].id != INSERT_NO_ID && readStamp < logs[curIndex].stamp) {
+           // || !database->Committed(logs[curIndex].id)) { // FIXME: Should not be equal
         if (curIndex == 0) {
             curIndex = maxItem;
         }
@@ -46,14 +46,9 @@ int LogList::AddData(const TxnLog &txnLog) {
     return 0;
 }
 
-std::shared_ptr<std::mutex> Database::RequestUpdate(const KeyType &key) {
-    return mLockManager->GetLock(key);
-}
-
 Database::Database() {
-    mLockManager = std::make_shared<LockManager>();
     mLock = std::make_shared<std::mutex>();
-    memset(commitStatus, 1, sizeof(commitStatus));
+    // memset(commitStatus, 1, sizeof(commitStatus));
 }
 
 std::shared_ptr<std::mutex> Database::RequestDbLock() {
@@ -62,9 +57,9 @@ std::shared_ptr<std::mutex> Database::RequestDbLock() {
 
 void Database::BeginTxn(TxnId id, bool includeSet) {
     std::lock_guard<std::mutex> lockGuard(commitLock);
-    if (includeSet) {
-        commitStatus[id % hashSize] = false;
-    }
+    // if (includeSet) {
+    //     commitStatus[id % hashSize] = false;
+    // }
 }
 
 MemoryDB::MemoryDB() {
@@ -112,7 +107,7 @@ std::ostream &operator<<(std::ostream &output, const MemoryDB &memoryDB) {
 }
 
 
-int MemoryDB::CommitUpdates(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp) {
+int MemoryDB::Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp) {
     std::lock_guard<std::mutex> lockGuard(commitLock);
     commitStamp = mvcc::GetTxnStamp();
     for (auto &logItem: logs) {
@@ -121,7 +116,7 @@ int MemoryDB::CommitUpdates(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp 
         int ret = this->Update(log.id, log.key, log.val, commitStamp);
         DCHECK_EQ(ret, 0);
     }
-    commitStatus[id % hashSize] = true;
+    // commitStatus[id % hashSize] = true;
     return 0;
 }
 

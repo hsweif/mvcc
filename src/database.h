@@ -31,30 +31,25 @@ public:
     Database();
     virtual int Read(TxnId id, const KeyType &key, TxnLog &res, const TxnStamp &readStamp) const = 0;
     virtual int Insert(TxnId id, const KeyType &key, const ValueType &val) = 0;
-    virtual std::shared_ptr<std::mutex> RequestUpdate(const KeyType &key);
 
     std::shared_ptr<std::mutex> RequestDbLock();
 
     void BeginTxn(TxnId id, bool includeSet);
 
-    virtual int CommitUpdates(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp) = 0;
+    virtual int Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp) = 0;
+
+    virtual inline bool Commit() const {
+        std::lock_guard<std::mutex> lockGuard(commitLock);
+    }
 
     virtual int Update(TxnId, const KeyType &key, ValueType val, const TxnStamp &stamp) = 0;
-
-    inline bool Committed(TxnId id) const {
-        return commitStatus[id % hashSize];
-    }
-
-    inline void Commit(TxnId id) {
-    }
 
 
 protected:
     mutable std::mutex commitLock;
-    std::shared_ptr<LockManager> mLockManager;
     std::shared_ptr<std::mutex> mLock;
-    const static int hashSize = 1 << 10;
-    bool commitStatus[hashSize];
+    // const static int hashSize = 1 << 10;
+    // bool commitStatus[hashSize];
 };
 
 class MemoryDB : public Database {
@@ -67,7 +62,7 @@ public:
 
     int Update(TxnId, const KeyType &key, ValueType val, const TxnStamp &stamp) override;
 
-    int CommitUpdates(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp) override;
+    int Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp) override;
 
     friend std::ostream &operator<<(std::ostream &output, const MemoryDB &momoryDB);
 

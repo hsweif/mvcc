@@ -31,14 +31,13 @@ typedef uint64_t TxnStamp;
 const static TxnId INSERT_NO_ID = std::numeric_limits<TxnId>::max();
 const static TxnId INVALID_ID = std::numeric_limits<TxnId>::max() - 1;
 
+static std::mutex timeStampLock;
 static TxnStamp curStamp = 0;
 
 inline TxnStamp GetTxnStamp() {
-    // auto now = std::chrono::high_resolution_clock::now();
-    // uint64_t nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
-    // return nanos;
-    // return clock();
-    return curStamp++;
+    std::lock_guard<std::mutex> lockGuard(timeStampLock);
+    TxnStamp stamp = curStamp ++;
+    return stamp;
 }
 
 // TODO: Add abort in assignment 3?

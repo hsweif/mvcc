@@ -78,7 +78,7 @@ int main(int argc, char **argv) {
     auto beginStamp = clock();
 
     LOG(INFO) << "Start MVCC";
-    std::string fileDir = "../data/inputs/";
+    std::string fileDir = "../judge/";
 
     std::shared_ptr<Database> database = std::make_shared<MemoryDB>();
     std::shared_ptr<std::vector<TxnId>> commitOrder = std::make_shared<std::vector<TxnId>>();
@@ -86,7 +86,7 @@ int main(int argc, char **argv) {
 
     auto prepareStamp = clock();
 
-    const int threadNum = 2;
+    const int threadNum = 4;
     std::thread threads[threadNum];
 
     for (int i = 0; i < threadNum; i++) {

@@ -7,10 +7,6 @@
 
 namespace mvcc {
 
-void TxnLogBuffer::AddTxnLog(const KeyType &key, size_t index) {
-    pool.emplace_back(key, index);
-}
-
 bool TxnLogBuffer::FindPrevRead(KeyType key, ValueType &prevRes) {
     auto iter = cacheVal.find(key);
     if (iter == cacheVal.end()) {
@@ -93,7 +89,7 @@ int TxnManager::Execute(const Txn &txn, TxnResult &txnResult) {
             ValueType value;
             TxnStamp readStamp = mvcc::GetTxnStamp();
             if (!txnLogBuffer.FindPrevRead(key, value)) {
-                mDatabase->Read(id, key, txnLog, txnResult.startStamp); // FIXME: Which stamp is right?
+                mDatabase->Read(id, key, txnLog, txnResult.startStamp);
                 value = txnLog.val;
                 txnLogBuffer.UpdateCacheVal(key, value);
             }
@@ -109,8 +105,9 @@ int TxnManager::Execute(const Txn &txn, TxnResult &txnResult) {
     }
     txnResult.opRes = std::vector<TxnResult::OpRes>(tmpRes);
     if (lockGuard != nullptr) {
-        mDatabase->CommitUpdates(id, updateLogs, txnResult.endStamp);
+        mDatabase->Commit(id, updateLogs, txnResult.endStamp);
     } else {
+        mDatabase->Commit();
         txnResult.endStamp = mvcc::GetTxnStamp();
     }
     return 0;

@@ -15,21 +15,12 @@ public:
 
     TxnLogBuffer(TxnId id) : id(id) {}
 
-    void AddTxnLog(const KeyType &key, size_t index);
-
-    // void Commit(std::shared_ptr<Database> database) const;
-
-    bool Empty() const { return pool.empty(); }
-
-    size_t Size() const { return pool.size(); }
-
     bool FindPrevRead(KeyType key, ValueType &prevRes);
 
     void UpdateCacheVal(KeyType key, const ValueType &val);
 
 
 private:
-    std::vector<std::pair<KeyType, size_t>> pool;
     std::map<KeyType, ValueType> cacheVal;
 };
 
@@ -40,7 +31,6 @@ public:
 
 private:
     std::shared_ptr<Database> mDatabase;
-    // std::shared_ptr<std::vector<TxnId>> mTxnOrders;
 };
 
 }
