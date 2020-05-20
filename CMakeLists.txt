@@ -2,7 +2,7 @@
 # Basic project information and versions
 project(mvcc)
 cmake_minimum_required(VERSION 3.2.0)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
@@ -76,7 +76,6 @@ set(MVCC_SOURCES
         src/parser.cpp
         src/database.cpp
         src/txn_manager.cpp
-        src/lock_manager.cpp
         )
 
 set(MVCC_HEADERS
@@ -84,7 +83,6 @@ set(MVCC_HEADERS
         src/parser.h
         src/database.h
         src/txn_manager.h
-        src/lock_manager.h
         )
 
 add_library(mvcc STATIC
@@ -107,7 +105,6 @@ set(MVCC_TESTS
         tests/test_parser.cpp
         tests/test_txnmanager.cpp
         tests/test_database.cpp
-        tests/test_lockmanager.cpp
         )
 add_executable(test_all ${MVCC_TESTS})
 target_link_libraries(test_all gtest_main ${ALL_MVCC_LIBS})

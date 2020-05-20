@@ -29,8 +29,7 @@ void Preparation(const std::string &fileDir, const std::string &fileName,
     }
 }
 
-void ExecuteTxns(const std::string &fileDir, int index, const std::shared_ptr<Database> database,
-                 const std::shared_ptr<std::vector<TxnId>> txnOrders) {
+void ExecuteTxns(const std::string &fileDir, int index, const std::shared_ptr<Database> database) {
     const std::string fileName = "thread_" + std::to_string(index) + ".txt";
     LOG(INFO) << "Executing txns in " << fileName;
     Parser parser = Parser(fileDir);
@@ -40,7 +39,7 @@ void ExecuteTxns(const std::string &fileDir, int index, const std::shared_ptr<Da
     DCHECK_EQ(ret, 0);
     ret = parser.ParseTxns(operations, txns);
     DCHECK_EQ(ret, 0);
-    std::unique_ptr<TxnManager> txnManager = std::make_unique<TxnManager>(database, txnOrders);
+    std::unique_ptr<TxnManager> txnManager = std::make_unique<TxnManager>(database);
     std::vector<TxnResult> txnResults;
     for (Txn &txn: txns) {
         TxnResult res;
@@ -50,7 +49,7 @@ void ExecuteTxns(const std::string &fileDir, int index, const std::shared_ptr<Da
 
         // Output read operation info.
         if (!res.opRes.empty()) {
-            std::cout << "Results of read operations of txn " << txn.txnId << " are: " ;
+            std::cout << "Results of read operations of txn " << txn.txnId << " are: ";
             for (auto &rRes: res.opRes) {
                 std::cout << "  " << rRes << std::endl;
             }
@@ -79,9 +78,7 @@ int main(int argc, char **argv) {
 
     LOG(INFO) << "Start MVCC";
     std::string fileDir = "../judge/";
-
     std::shared_ptr<Database> database = std::make_shared<MemoryDB>();
-    std::shared_ptr<std::vector<TxnId>> commitOrder = std::make_shared<std::vector<TxnId>>();
     Preparation(fileDir, "data_prepare.txt", database);
 
     auto prepareStamp = clock();
@@ -90,7 +87,7 @@ int main(int argc, char **argv) {
     std::thread threads[threadNum];
 
     for (int i = 0; i < threadNum; i++) {
-        threads[i] = std::thread(ExecuteTxns, fileDir, i + 1, database, commitOrder);
+        threads[i] = std::thread(ExecuteTxns, fileDir, i + 1, database);
     }
 
     for (int i = 0; i < threadNum; i++) {

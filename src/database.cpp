@@ -3,7 +3,6 @@
 //
 
 #include "database.h"
-#include "lock_manager.h"
 
 namespace mvcc {
 
@@ -16,14 +15,12 @@ int LogList::AddData(TxnLog txnLog, int &index) {
     return 0;
 }
 
-int LogList::GetNewestLog(TxnId id, TxnLog &txnLog, const TxnStamp &readStamp,
-                          const Database *database) const {
+int LogList::GetNewestLog(TxnId id, TxnLog &txnLog, const TxnStamp &readStamp) const {
     int curIndex = curItem == 0 ? maxItem - 1 : curItem - 1;
     DCHECK_GE(curIndex, 0);
     DCHECK_LT(curIndex, maxItem);
     int cnt = 0;
     while (logs[curIndex].id != INSERT_NO_ID && readStamp < logs[curIndex].stamp) {
-           // || !database->Committed(logs[curIndex].id)) { // FIXME: Should not be equal
         if (curIndex == 0) {
             curIndex = maxItem;
         }
@@ -48,7 +45,6 @@ int LogList::AddData(const TxnLog &txnLog) {
 
 Database::Database() {
     mLock = std::make_shared<std::mutex>();
-    // memset(commitStatus, 1, sizeof(commitStatus));
 }
 
 std::shared_ptr<std::mutex> Database::RequestDbLock() {
@@ -57,9 +53,6 @@ std::shared_ptr<std::mutex> Database::RequestDbLock() {
 
 void Database::BeginTxn(TxnId id, bool includeSet) {
     std::lock_guard<std::mutex> lockGuard(commitLock);
-    // if (includeSet) {
-    //     commitStatus[id % hashSize] = false;
-    // }
 }
 
 MemoryDB::MemoryDB() {
@@ -87,7 +80,7 @@ int MemoryDB::Read(TxnId id, const KeyType &key, TxnLog &res, const TxnStamp &re
         return 1;
     }
     const LogList &logList = iter->second;
-    int ret = logList.GetNewestLog(id, res, readStamp, this);
+    int ret = logList.GetNewestLog(id, res, readStamp);
     return ret;
 }
 
@@ -99,7 +92,7 @@ std::ostream &operator<<(std::ostream &output, const MemoryDB &memoryDB) {
         const KeyType &key = item.first;
         const LogList &logList = item.second;
         TxnLog readLog;
-        logList.GetNewestLog(INSERT_NO_ID, readLog, mvcc::GetTxnStamp(), &memoryDB);
+        logList.GetNewestLog(INSERT_NO_ID, readLog, mvcc::GetTxnStamp());
         output << "  " << key << ": " << readLog.val << ", by txn_id " << readLog.id << ", at " << readLog.stamp
                << std::endl;
     }
@@ -116,7 +109,6 @@ int MemoryDB::Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commit
         int ret = this->Update(log.id, log.key, log.val, commitStamp);
         DCHECK_EQ(ret, 0);
     }
-    // commitStatus[id % hashSize] = true;
     return 0;
 }
 

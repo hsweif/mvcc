@@ -26,7 +26,7 @@ private:
 
 class TxnManager {
 public:
-    TxnManager(std::shared_ptr<Database> database, std::shared_ptr<std::vector<TxnId>> txnOrders);
+    TxnManager(std::shared_ptr<Database> database);
     int Execute(const Txn &txn, TxnResult &txnResult);
 
 private:

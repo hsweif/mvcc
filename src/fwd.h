@@ -7,6 +7,7 @@
 #define MVCC_FWD_H
 
 #include <string>
+#include <utility>
 #include <vector>
 #include <list>
 #include <map>
@@ -61,8 +62,8 @@ enum class MathOp {
 struct Operation {
     OP op;
     KeyType key;
-    MathOp mathOp; // + - * /
     ValueType value;
+    MathOp mathOp; // + - * /
 
     Operation() : op(OP::INVALID), mathOp(MathOp::INVALID) {}
 
@@ -79,13 +80,12 @@ struct Operation {
 };
 
 struct Txn {
-    std::vector<Operation> operations;
-    bool committed;
     TxnId txnId;
+    std::vector<Operation> operations;
 
-    Txn(TxnId id) : txnId(id), committed(false) {}
+    explicit Txn(TxnId id) : txnId(id) {}
 
-    Txn(TxnId id, std::vector<Operation> &operations) : txnId(id), operations(operations), committed(false) {}
+    Txn(TxnId id, std::vector<Operation> &operations) : txnId(id), operations(operations) {}
 
     void AddOp(const Operation &op) { operations.push_back(op); }
 };
@@ -99,7 +99,7 @@ struct TxnResult {
         TxnStamp stamp;
 
         OpRes(OP op, KeyType key, ValueType val, TxnStamp stamp) :
-                op(op), key(key), val(val), stamp(stamp) {}
+                op(op), key(std::move(key)), val(val), stamp(stamp) {}
     };
 
     TxnId txnId;
@@ -153,8 +153,6 @@ class Database;
 class MemoryDB;
 
 class TxnLogBuffer;
-
-class LockManager;
 
 }
 

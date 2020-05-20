@@ -14,8 +14,7 @@ class LogList {
 public:
     LogList() : curItem(0) {}
 
-    int GetNewestLog(TxnId id, TxnLog &txnLog, const TxnStamp &readStamp,
-                     const Database *database) const;
+    int GetNewestLog(TxnId id, TxnLog &txnLog, const TxnStamp &readStamp) const;
     int AddData(TxnLog txnLog, int &index);
     int AddData(const TxnLog &txnLog);
 
@@ -38,7 +37,7 @@ public:
 
     virtual int Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp) = 0;
 
-    virtual inline bool Commit() const {
+    virtual inline void Commit() const {
         std::lock_guard<std::mutex> lockGuard(commitLock);
     }
 
@@ -48,8 +47,6 @@ public:
 protected:
     mutable std::mutex commitLock;
     std::shared_ptr<std::mutex> mLock;
-    // const static int hashSize = 1 << 10;
-    // bool commitStatus[hashSize];
 };
 
 class MemoryDB : public Database {

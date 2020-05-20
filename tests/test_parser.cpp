@@ -11,7 +11,7 @@ namespace mvcc {
 class ParserTest: public ::testing::Test {
 protected:
     void SetUp() override {
-        dataPath = "../data/";
+        dataPath = "../judge/";
         parser = std::make_unique<Parser>(dataPath);
     }
 

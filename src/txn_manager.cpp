@@ -20,8 +20,7 @@ void TxnLogBuffer::UpdateCacheVal(KeyType key, const ValueType &val) {
     cacheVal[key] = val;
 }
 
-TxnManager::TxnManager(std::shared_ptr<Database> database,
-                       std::shared_ptr<std::vector<TxnId>> txnOrders) {
+TxnManager::TxnManager(std::shared_ptr<Database> database) {
     mDatabase = std::shared_ptr<Database>(database);
 }
 

@@ -34,13 +34,11 @@ class TestTxnManager : public ::testing::Test {
 protected:
     void SetUp() override {
         database = std::make_shared<MemoryDB>();
-        txnOrders = std::make_shared<std::vector<TxnId>>();
-        txnManager = std::make_shared<TxnManager>(database, txnOrders);
+        txnManager = std::make_shared<TxnManager>(database);
     }
 
     std::shared_ptr<Database> database;
     std::shared_ptr<TxnManager> txnManager;
-    std::shared_ptr<std::vector<TxnId>> txnOrders;
 };
 
 
