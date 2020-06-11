@@ -8,7 +8,7 @@
 
 namespace mvcc {
 
-class ParserTest: public ::testing::Test {
+class ParserTest : public ::testing::Test {
 protected:
     void SetUp() override {
         dataPath = "../judge/";
@@ -19,8 +19,7 @@ protected:
     std::string dataPath;
 };
 
-TEST_F(ParserTest, SuccessParse)
-{
+TEST_F(ParserTest, SuccessParse) {
     std::vector<Operation> result;
     int res = parser->ParseOperations("thread_1.txt", result);
     EXPECT_EQ(res, 0);
@@ -34,8 +33,7 @@ TEST_F(ParserTest, SuccessParse)
     EXPECT_EQ(txn1Ops[1].op, OP::SET);
 }
 
-TEST_F(ParserTest, FailParse)
-{
+TEST_F(ParserTest, FailParse) {
     std::vector<Operation> result;
     int res = parser->ParseOperations("file_doesnt_exist.txt", result);
     EXPECT_EQ(res, 1);

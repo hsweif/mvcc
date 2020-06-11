@@ -66,6 +66,7 @@ set_property(TARGET glog logging_unittest demangle_unittest utilities_unittest s
 include_directories(
         src/ext/glog/src
         ${CMAKE_BINARY_DIR}/src/ext/glog
+        src/filesystem
 )
 
 #######################################################
@@ -76,6 +77,7 @@ set(MVCC_SOURCES
         src/parser.cpp
         src/database.cpp
         src/txn_manager.cpp
+        src/page.cpp
         )
 
 set(MVCC_HEADERS
@@ -83,11 +85,19 @@ set(MVCC_HEADERS
         src/parser.h
         src/database.h
         src/txn_manager.h
+        src/page.h
+        )
+
+FILE(GLOB FILE_SYSTEM_SRC
+        src/filesystem/bufmanager
+        src/filesystem/fileio
+        src/filesystem/utils
         )
 
 add_library(mvcc STATIC
         ${MVCC_SOURCES}
         ${MVCC_HEADERS}
+        ${FILE_SYSTEM_SRC}
         )
 
 set(ALL_MVCC_LIBS
@@ -105,6 +115,7 @@ set(MVCC_TESTS
         tests/test_parser.cpp
         tests/test_txnmanager.cpp
         tests/test_database.cpp
+        tests/test_page.cpp
         )
 add_executable(test_all ${MVCC_TESTS})
 target_link_libraries(test_all gtest_main ${ALL_MVCC_LIBS})

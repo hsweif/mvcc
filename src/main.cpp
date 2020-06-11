@@ -6,6 +6,9 @@
 #include "parser.h"
 #include "txn_manager.h"
 #include "database.h"
+#include "fileio/FileManager.h"
+#include "bufmanager/BufPageManager.h"
+#include "page.h"
 #include <glog/logging.h>
 #include <thread>
 #include <fstream>
@@ -47,8 +50,6 @@ void ExecuteTxns(const std::string &fileDir, int index, const std::shared_ptr<Da
         int ret = txnManager->Execute(txn, res);
         DCHECK_EQ(ret, 0);
         LOG(INFO) << "Txn info of " << txn.txnId << " :\n" << res;
-
-
         // Output read operation info.
         // if (!res.opRes.empty()) {
         //     std::cout << "Results of read operations of txn " << txn.txnId << " are: ";
@@ -75,12 +76,7 @@ void ExecuteTxns(const std::string &fileDir, int index, const std::shared_ptr<Da
     output.close();
 }
 
-int main(int argc, char **argv) {
-    // Setup glog
-    google::InitGoogleLogging(argv[0]);
-    FLAGS_minloglevel = 1; // level: INFO
-    FLAGS_logtostderr = true;
-
+void TestMVCC() {
     auto beginStamp = GetClock();
 
     LOG(INFO) << "Start MVCC";
@@ -110,5 +106,29 @@ int main(int argc, char **argv) {
     std::cout << "- - - - - Time Spent - - - - - " << std::endl;
     std::cout << "Preparation: " << (prepareStamp - beginStamp) << " ms" << std::endl;
     std::cout << "Executed all transactions: " << (endStamp - prepareStamp) << " ms" << std::endl;
+}
+
+void TestBufManager() {
+    auto *fileManager = new FileManager();
+    int fileId;
+    const std::string dbName = "../data/test.db";
+    fileManager->createFile(dbName.c_str());
+    if(!fileManager->openFile(dbName.c_str(), fileId)) {
+        LOG(ERROR) << "Fail to open file: " << dbName;
+        return;
+    }
+    LOG(INFO) << "Successfully open: " << fileId << std::endl;
+    auto *bufPageManager = new BufPageManager(fileManager);
+    fileManager->closeFile(fileId);
+    delete(bufPageManager);
+    delete(fileManager);
+}
+
+int main(int argc, char **argv) {
+    // Setup glog
+    google::InitGoogleLogging(argv[0]);
+    FLAGS_minloglevel = 1; // level: INFO
+    FLAGS_logtostderr = true;
+    TestBufManager();
     return 0;
 }

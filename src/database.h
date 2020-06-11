@@ -7,6 +7,7 @@
 
 #include "fwd.h"
 #include <shared_mutex>
+#include <utility>
 
 namespace mvcc {
 
@@ -26,15 +27,11 @@ private:
 
 class Database {
 public:
-
     Database();
     virtual int Read(TxnId id, const KeyType &key, TxnLog &res, const TxnStamp &readStamp) const = 0;
     virtual int Insert(TxnId id, const KeyType &key, const ValueType &val) = 0;
-
     std::shared_ptr<std::mutex> RequestDbLock();
-
     void BeginTxn(TxnId id, bool includeSet);
-
     virtual int Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp) = 0;
 
     virtual inline void Commit() const {
@@ -42,8 +39,6 @@ public:
     }
 
     virtual int Update(TxnId, const KeyType &key, ValueType val, const TxnStamp &stamp) = 0;
-
-
 protected:
     mutable std::mutex commitLock;
     std::shared_ptr<std::mutex> mLock;
@@ -52,19 +47,26 @@ protected:
 class MemoryDB : public Database {
 public:
     MemoryDB();
-
     int Read(TxnId id, const KeyType &key, TxnLog &res, const TxnStamp &readStamp) const override;
-
     int Insert(TxnId id, const KeyType &key, const ValueType &val) override;
-
     int Update(TxnId, const KeyType &key, ValueType val, const TxnStamp &stamp) override;
-
     int Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp) override;
-
     friend std::ostream &operator<<(std::ostream &output, const MemoryDB &momoryDB);
 
 private:
     std::map<KeyType, LogList> mStorage; // Save the key-value data in a STL map.
+};
+
+class DiskDB : public Database {
+public:
+    DiskDB(std::string name) : name(std::move(name)) {}
+
+    int Read(TxnId id, const KeyType &key, TxnLog &res, const TxnStamp &readStamp) const override;
+    int Insert(TxnId id, const KeyType &key, const ValueType &val) override;
+    int Update(TxnId, const KeyType &key, ValueType val, const TxnStamp &stamp) override;
+    int Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp) override;
+private:
+    std::string name;
 };
 
 } // namespace mvcc
