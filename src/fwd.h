@@ -35,10 +35,16 @@ const static TxnId INVALID_ID = std::numeric_limits<TxnId>::max() - 1;
 static std::mutex timeStampLock;
 static TxnStamp curStamp = 0;
 
+
 inline TxnStamp GetTxnStamp() {
     std::lock_guard<std::mutex> lockGuard(timeStampLock);
     TxnStamp stamp = curStamp ++;
     return stamp;
+}
+
+inline uint64_t GetClock() {
+    uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    return now;
 }
 
 // TODO: Add abort in assignment 3?

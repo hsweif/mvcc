@@ -41,21 +41,28 @@ void ExecuteTxns(const std::string &fileDir, int index, const std::shared_ptr<Da
     DCHECK_EQ(ret, 0);
     std::unique_ptr<TxnManager> txnManager = std::make_unique<TxnManager>(database);
     std::vector<TxnResult> txnResults;
+    printf("Thread %d begin first txn at%llu\n", index, GetClock());
     for (Txn &txn: txns) {
         TxnResult res;
         int ret = txnManager->Execute(txn, res);
         DCHECK_EQ(ret, 0);
         LOG(INFO) << "Txn info of " << txn.txnId << " :\n" << res;
 
+
         // Output read operation info.
-        if (!res.opRes.empty()) {
-            std::cout << "Results of read operations of txn " << txn.txnId << " are: ";
-            for (auto &rRes: res.opRes) {
-                std::cout << "  " << rRes << std::endl;
-            }
-        }
+        // if (!res.opRes.empty()) {
+        //     std::cout << "Results of read operations of txn " << txn.txnId << " are: ";
+        //     for (auto &rRes: res.opRes) {
+        //         std::cout << "  " << rRes << std::endl;
+        //     }
+        // }
         txnResults.push_back(res);
     }
+    printf("Thread %d commit last txn at%llu\n", index, GetClock());
+    std::shared_ptr<MemoryDB> mDB = std::dynamic_pointer_cast<MemoryDB>(database);
+    printf("----Database status of thread %d----\n", index);
+    std::cout << *mDB << std::endl;
+
 
     LOG(INFO) << "Executed txns in " << fileName;
     std::ofstream output;
@@ -74,17 +81,18 @@ int main(int argc, char **argv) {
     FLAGS_minloglevel = 1; // level: INFO
     FLAGS_logtostderr = true;
 
-    auto beginStamp = clock();
+    auto beginStamp = GetClock();
 
     LOG(INFO) << "Start MVCC";
     std::string fileDir = "../judge/";
     std::shared_ptr<Database> database = std::make_shared<MemoryDB>();
     Preparation(fileDir, "data_prepare.txt", database);
 
-    auto prepareStamp = clock();
+    auto prepareStamp = GetClock();
 
     const int threadNum = 4;
     std::thread threads[threadNum];
+
 
     for (int i = 0; i < threadNum; i++) {
         threads[i] = std::thread(ExecuteTxns, fileDir, i + 1, database);
@@ -94,12 +102,13 @@ int main(int argc, char **argv) {
         threads[i].join();
     }
 
-    auto endStamp = clock();
+    auto endStamp = GetClock();
     std::shared_ptr<MemoryDB> mDB = std::dynamic_pointer_cast<MemoryDB>(database);
     std::cout << std::endl;
+    std::cout << "-----------Final database status-------------" << std::endl;
     std::cout << *mDB;
     std::cout << "- - - - - Time Spent - - - - - " << std::endl;
-    std::cout << "Preparation: " << (prepareStamp - beginStamp) * 1e-3 << " ms" << std::endl;
-    std::cout << "Executed all transactions: " << (endStamp - prepareStamp) * 1e-3 << " ms" << std::endl;
+    std::cout << "Preparation: " << (prepareStamp - beginStamp) << " ms" << std::endl;
+    std::cout << "Executed all transactions: " << (endStamp - prepareStamp) << " ms" << std::endl;
     return 0;
 }
