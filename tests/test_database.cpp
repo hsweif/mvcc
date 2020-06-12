@@ -43,4 +43,24 @@ TEST_F(TestMemoryDB, TestFailRead) {
     EXPECT_EQ(ret, 1);
 }
 
+class PersistDBTest: public ::testing::Test {
+protected:
+    void SetUp() override {
+        database = std::make_unique<PersistDB>(dbName);
+        database->Insert(INSERT_NO_ID, "test", 23);
+    }
+
+    std::unique_ptr<PersistDB> database;
+    const std::string dbName = "unittest.db";
+};
+
+TEST_F(PersistDBTest, TestIO) {
+    EXPECT_EQ(database->SaveSnapshot(), 0);
+    EXPECT_EQ(database->LoadSnapshot(), 0);
+    auto testDb = std::make_unique<PersistDB>(dbName);
+    EXPECT_EQ(testDb->RecordNum(), 0);
+    EXPECT_EQ(testDb->LoadSnapshot(), 0);
+    EXPECT_EQ(testDb->RecordNum(), database->RecordNum());
+}
+
 } // namespace mvcc

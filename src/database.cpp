@@ -3,6 +3,7 @@
 //
 
 #include "database.h"
+#include "fstream"
 
 namespace mvcc {
 
@@ -61,7 +62,6 @@ MemoryDB::MemoryDB() {
 int MemoryDB::Insert(TxnId id, const KeyType &key, const ValueType &val) {
     // Should add mutex in following assignments
     auto iter = mStorage.find(key);
-    DCHECK_EQ(id, INSERT_NO_ID); // for assignment 1 because only preparation contains insert
     int index;
     if (iter == mStorage.end()) {
         // Not existed in the database before.
@@ -119,6 +119,70 @@ int MemoryDB::Update(TxnId id, const KeyType &key, ValueType val, const TxnStamp
     }
     LogList &logList = iter->second;
     logList.AddData(TxnLog(id, key, val, stamp));
+    return 0;
+}
+
+
+int PersistDB::SaveSnapshot() {
+    /**
+     * Snapshot format (a single record)
+     * uint64 stamp | uint32 id | uint32 key_length | (key_length bytes) key | int value
+     */
+    // TODO： save snapshot
+    std::lock_guard<std::mutex> lockGuard(commitLock);
+    std::ofstream file;
+    file.open(fileName, std::ios_base::binary);
+    if (!file.is_open()) {
+        LOG(ERROR) << "Fail to open file to save the snapshot.";
+        return 1;
+    }
+    const auto saveStamp = mvcc::GetTxnStamp();
+    const uint32_t recordNum = mStorage.size();
+    file.write(reinterpret_cast<const char *>(&recordNum), sizeof(recordNum));
+    for (const auto &item: mStorage) {
+        const KeyType &key = item.first;
+        const LogList &logList = item.second;
+        TxnLog resLog;
+        logList.GetNewestLog(INSERT_NO_ID, resLog, saveStamp);
+        uint32_t keyLength = key.size();
+        auto c = key.c_str();
+        file.write(reinterpret_cast<const char *>(&resLog.stamp), sizeof(resLog.stamp));
+        file.write(reinterpret_cast<const char *>(&resLog.id), sizeof(resLog.id));
+        file.write(reinterpret_cast<const char *>(&keyLength), sizeof(keyLength));
+        file.write(c, keyLength);
+        file.write(reinterpret_cast<const char *>(&resLog.val), sizeof(resLog.val));
+    }
+    file.close();
+    return 0;
+}
+
+int PersistDB::LoadSnapshot() {
+    // TODO： load snapshot
+    std::ifstream file;
+    file.open(fileName, std::ios_base::binary);
+    if (!file.is_open()) {
+        LOG(WARNING) << "Unable to open file to load snapshot";
+        return 1;
+    }
+    uint32_t recordNum;
+    file.read(reinterpret_cast<char *>(&recordNum), sizeof(recordNum));
+    for (uint32_t i = 0; i < recordNum; i++) {
+        uint64_t stamp;
+        uint32_t id, keyLength;
+        ValueType value;
+        file.read(reinterpret_cast<char *>(&stamp), sizeof(stamp));
+        file.read(reinterpret_cast<char *>(&id), sizeof(id));
+        file.read(reinterpret_cast<char *>(&keyLength), sizeof(keyLength));
+        char c[keyLength];
+        file.read(c, keyLength);
+        KeyType key;
+        for(uint32_t k = 0; k < keyLength; k ++) {
+            key += c[k];
+        }
+        file.read(reinterpret_cast<char *>(&value), sizeof(value));
+        Insert(id, key, value);
+    }
+    file.close();
     return 0;
 }
 

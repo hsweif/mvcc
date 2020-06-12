@@ -19,19 +19,19 @@ protected:
     std::string dataPath;
 };
 
-TEST_F(ParserTest, SuccessParse) {
-    std::vector<Operation> result;
-    int res = parser->ParseOperations("thread_1.txt", result);
-    EXPECT_EQ(res, 0);
-    EXPECT_EQ(result.size(), 8); // 8 lines
-    std::vector<Txn> txns;
-    res = parser->ParseTxns(result, txns);
-    EXPECT_EQ(res, 0);
-    EXPECT_EQ(txns.size(), 2); // 2 txns
-    auto txn1Ops = txns[0].operations;
-    EXPECT_EQ(txn1Ops[0].op, OP::SET);
-    EXPECT_EQ(txn1Ops[1].op, OP::SET);
-}
+// TEST_F(ParserTest, SuccessParse) {
+//     std::vector<Operation> result;
+//     int res = parser->ParseOperations("thread_1.txt", result);
+//     EXPECT_EQ(res, 0);
+//     EXPECT_EQ(result.size(), 8); // 8 lines
+//     std::vector<Txn> txns;
+//     res = parser->ParseTxns(result, txns);
+//     EXPECT_EQ(res, 0);
+//     EXPECT_EQ(txns.size(), 2); // 2 txns
+//     auto txn1Ops = txns[0].operations;
+//     EXPECT_EQ(txn1Ops[0].op, OP::SET);
+//     EXPECT_EQ(txn1Ops[1].op, OP::SET);
+// }
 
 TEST_F(ParserTest, FailParse) {
     std::vector<Operation> result;

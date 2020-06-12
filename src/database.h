@@ -52,21 +52,22 @@ public:
     int Update(TxnId, const KeyType &key, ValueType val, const TxnStamp &stamp) override;
     int Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp) override;
     friend std::ostream &operator<<(std::ostream &output, const MemoryDB &momoryDB);
+    int RecordNum() const {
+        return mStorage.size();
+    }
 
-private:
+protected:
     std::map<KeyType, LogList> mStorage; // Save the key-value data in a STL map.
 };
 
-class DiskDB : public Database {
+class PersistDB: public MemoryDB {
 public:
-    DiskDB(std::string name) : name(std::move(name)) {}
+    explicit PersistDB(std::string fileName): MemoryDB(), fileName(std::move(fileName)) {}
+    int LoadSnapshot();
+    int SaveSnapshot();
 
-    int Read(TxnId id, const KeyType &key, TxnLog &res, const TxnStamp &readStamp) const override;
-    int Insert(TxnId id, const KeyType &key, const ValueType &val) override;
-    int Update(TxnId, const KeyType &key, ValueType val, const TxnStamp &stamp) override;
-    int Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp) override;
-private:
-    std::string name;
+protected:
+    std::string fileName;
 };
 
 } // namespace mvcc

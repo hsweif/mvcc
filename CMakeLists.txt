@@ -115,7 +115,6 @@ set(MVCC_TESTS
         tests/test_parser.cpp
         tests/test_txnmanager.cpp
         tests/test_database.cpp
-        tests/test_page.cpp
         )
 add_executable(test_all ${MVCC_TESTS})
 target_link_libraries(test_all gtest_main ${ALL_MVCC_LIBS})

@@ -24,20 +24,19 @@ protected:
 };
 
 TEST_F(BitMapTest, TestInit) {
-    for (int i = 0; i < bitMap->size; i++) {
+    for (int i = 0; i < bitMap->bufferSize; i++) {
         bitMap->buffer[i] = 1;
     }
     bitMap->Init();
-    for (int i = 0; i < bitMap->size; i++) {
+    for (int i = 0; i < bitMap->bufferSize; i++) {
         EXPECT_EQ(bitMap->buffer[i], 0);
     }
 }
 
 TEST_F(BitMapTest, TestSetGet) {
-    bitMap->Init(); 
+    bitMap->Init();
     EXPECT_FALSE(bitMap->Get(0));
     EXPECT_FALSE(bitMap->Get(33));
     bitMap->Set(33, true);
     EXPECT_TRUE(bitMap->Get(33));
 }
-    
