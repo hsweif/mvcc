@@ -1,7 +1,3 @@
-//
-// Created by 范軒瑋 on 2020/5/14.
-//
-
 #include "txn_manager.h"
 #include "database.h"
 

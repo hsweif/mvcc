@@ -6,6 +6,7 @@
 #define MVCC_DATABASE_H
 
 #include "fwd.h"
+#include "log.h"
 #include <shared_mutex>
 #include <utility>
 
@@ -62,12 +63,14 @@ protected:
 
 class PersistDB: public MemoryDB {
 public:
-    explicit PersistDB(std::string fileName): MemoryDB(), fileName(std::move(fileName)) {}
+    explicit PersistDB(std::string fileName);
     int LoadSnapshot();
     int SaveSnapshot();
+    int Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp) override;
 
 protected:
     std::string fileName;
+    std::unique_ptr<LogManager> logManager;
 };
 
 } // namespace mvcc

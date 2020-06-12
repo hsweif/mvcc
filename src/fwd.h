@@ -38,12 +38,13 @@ static TxnStamp curStamp = 0;
 
 inline TxnStamp GetTxnStamp() {
     std::lock_guard<std::mutex> lockGuard(timeStampLock);
-    TxnStamp stamp = curStamp ++;
+    TxnStamp stamp = curStamp++;
     return stamp;
 }
 
 inline uint64_t GetClock() {
-    uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
     return now;
 }
 
@@ -135,22 +136,53 @@ struct TxnLog {
     KeyType key;
     ValueType val;
     TxnStamp stamp;
-    bool committed;
+    OP op;
 
     TxnLog(const TxnLog &txnLog) {
         id = txnLog.id;
         key = txnLog.key;
         val = txnLog.val;
         stamp = txnLog.stamp;
-        committed = txnLog.committed;
+        op = txnLog.op;
     }
 
-    TxnLog() : id(INVALID_ID), committed(false) {}
+    TxnLog() : id(INVALID_ID) {}
 
-    TxnLog(TxnId id, KeyType key, ValueType val, TxnStamp stamp, bool committed = false) :
-            id(id), key(key), val(val), stamp(stamp), committed(committed) {}
+    TxnLog(TxnId id, KeyType key, ValueType val, TxnStamp stamp, OP op = OP::SET) :
+            id(id), key(key), val(val), stamp(stamp), op(op) {}
 
 };
+
+inline std::ostream &operator<<(std::ostream &output, const TxnLog &txnLog) {
+    output << txnLog.id << " " << txnLog.stamp << " " << txnLog.key << " " << txnLog.val;
+    return output;
+}
+
+inline void Deserialize(std::istream &is, TxnLog &log, uint32_t &offset) {
+    is.read(reinterpret_cast<char *>(&log.stamp), sizeof(log.stamp));
+    is.read(reinterpret_cast<char *>(&log.id), sizeof(log.id));
+    uint32_t keyLength;
+    is.read(reinterpret_cast<char *>(&keyLength), sizeof(keyLength));
+    char c[keyLength];
+    is.read(c, keyLength * sizeof(char));
+    log.key = "";
+    for (uint32_t i = 0; i < keyLength; i++) {
+        log.key += c[i];
+    }
+    is.read(reinterpret_cast<char *>(&log.val), sizeof(log.val));
+    offset = sizeof(log.id) + sizeof(keyLength) + keyLength * sizeof(char) + sizeof(log.val) + sizeof(log.stamp);
+}
+
+inline void Serialize(std::ostream &os, const TxnLog &log, uint32_t &offset) {
+    os.write(reinterpret_cast<const char *>(&log.stamp), sizeof(log.stamp));
+    os.write(reinterpret_cast<const char *>(&log.id), sizeof(log.id));
+    uint32_t keyLength = log.key.size();
+    auto c = log.key.c_str();
+    os.write(reinterpret_cast<const char *>(&keyLength), sizeof(keyLength));
+    os.write(c, keyLength * sizeof(char));
+    os.write(reinterpret_cast<const char *>(&log.val), sizeof(log.val));
+    offset = sizeof(log.id) + sizeof(keyLength) + keyLength * sizeof(char) + sizeof(log.val) + sizeof(log.stamp);
+}
 
 class Parser;
 
@@ -158,7 +190,11 @@ class Database;
 
 class MemoryDB;
 
+class PersistDB;
+
 class TxnLogBuffer;
+
+class LogManager;
 
 }
 

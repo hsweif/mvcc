@@ -16,9 +16,7 @@ public:
     TxnLogBuffer(TxnId id) : id(id) {}
 
     bool FindPrevRead(KeyType key, ValueType &prevRes);
-
     void UpdateCacheVal(KeyType key, const ValueType &val);
-
 
 private:
     std::map<KeyType, ValueType> cacheVal;

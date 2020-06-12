@@ -6,8 +6,6 @@
 #include "parser.h"
 #include "txn_manager.h"
 #include "database.h"
-#include "fileio/FileManager.h"
-#include "bufmanager/BufPageManager.h"
 #include "page.h"
 #include <glog/logging.h>
 #include <thread>
@@ -29,6 +27,28 @@ void Preparation(const std::string &fileDir, const std::string &fileName,
         }
         ret = database->Insert(INSERT_NO_ID, operation.key, operation.value);
         DCHECK_EQ(ret, 0);
+    }
+}
+
+void Interactive(const std::string &fileDir, const std::shared_ptr<Database> database) {
+    std::string command;
+    Parser parser(fileDir);
+    std::vector<Operation> operations;
+    auto txnManager = std::make_unique<TxnManager>(database);
+    while (getline(std::cin, command)) {
+        Operation operation = parser.ParseOperation(command);
+        if (operation.op == OP::INSERT) {
+            database->Insert(INSERT_NO_ID, operation.key, operation.value);
+            continue;
+        }
+        if (operation.op == OP::BEGIN) {
+            operations.clear();
+        }
+        operations.push_back(operation);
+        if (operation.op == OP::COMMIT) {
+            std::vector<Txn> txns;
+            parser.ParseTxns(operations, txns);
+        }
     }
 }
 
@@ -108,20 +128,15 @@ void TestMVCC() {
     std::cout << "Executed all transactions: " << (endStamp - prepareStamp) << " ms" << std::endl;
 }
 
-void TestBufManager() {
-    auto *fileManager = new FileManager();
-    int fileId;
-    const std::string dbName = "../data/test.db";
-    fileManager->createFile(dbName.c_str());
-    if(!fileManager->openFile(dbName.c_str(), fileId)) {
-        LOG(ERROR) << "Fail to open file: " << dbName;
-        return;
+void TestPersistDB() {
+    std::string fileDir = "../data/";
+    auto database = std::make_shared<PersistDB>(fileDir + "testdb.bin");
+    if(database->LoadSnapshot()) {
+        std::shared_ptr<Database> base = std::dynamic_pointer_cast<Database>(database);
+        Preparation(fileDir, "data_prepare.txt", base);
     }
-    LOG(INFO) << "Successfully open: " << fileId << std::endl;
-    auto *bufPageManager = new BufPageManager(fileManager);
-    fileManager->closeFile(fileId);
-    delete(bufPageManager);
-    delete(fileManager);
+    std::cout << *database;
+    database->SaveSnapshot();
 }
 
 int main(int argc, char **argv) {
@@ -129,6 +144,6 @@ int main(int argc, char **argv) {
     google::InitGoogleLogging(argv[0]);
     FLAGS_minloglevel = 1; // level: INFO
     FLAGS_logtostderr = true;
-    TestBufManager();
+    TestPersistDB();
     return 0;
 }

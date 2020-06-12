@@ -78,6 +78,7 @@ set(MVCC_SOURCES
         src/database.cpp
         src/txn_manager.cpp
         src/page.cpp
+        src/log.cpp
         )
 
 set(MVCC_HEADERS
@@ -86,6 +87,7 @@ set(MVCC_HEADERS
         src/database.h
         src/txn_manager.h
         src/page.h
+        src/log.h
         )
 
 FILE(GLOB FILE_SYSTEM_SRC

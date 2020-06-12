@@ -4,6 +4,7 @@
 
 #include "database.h"
 #include "fstream"
+#include "log.h"
 
 namespace mvcc {
 
@@ -66,7 +67,7 @@ int MemoryDB::Insert(TxnId id, const KeyType &key, const ValueType &val) {
     if (iter == mStorage.end()) {
         // Not existed in the database before.
         mStorage[key] = LogList();
-        mStorage[key].AddData(TxnLog(id, key, val, mvcc::GetTxnStamp(), true), index);
+        mStorage[key].AddData(TxnLog(id, key, val, mvcc::GetTxnStamp()), index);
         return 0;
     } else {
         // Fail. You cannot insert an existed key.
@@ -122,13 +123,15 @@ int MemoryDB::Update(TxnId id, const KeyType &key, ValueType val, const TxnStamp
     return 0;
 }
 
+PersistDB::PersistDB(std::string fileName): fileName(std::move(fileName)) {
+    logManager = std::make_unique<LogManager>(this->fileName);
+}
 
 int PersistDB::SaveSnapshot() {
     /**
      * Snapshot format (a single record)
      * uint64 stamp | uint32 id | uint32 key_length | (key_length bytes) key | int value
      */
-    // TODO： save snapshot
     std::lock_guard<std::mutex> lockGuard(commitLock);
     std::ofstream file;
     file.open(fileName, std::ios_base::binary);
@@ -157,7 +160,7 @@ int PersistDB::SaveSnapshot() {
 }
 
 int PersistDB::LoadSnapshot() {
-    // TODO： load snapshot
+    std::lock_guard<std::mutex> lockGuard(this->commitLock);
     std::ifstream file;
     file.open(fileName, std::ios_base::binary);
     if (!file.is_open()) {
@@ -185,6 +188,21 @@ int PersistDB::LoadSnapshot() {
     file.close();
     return 0;
 }
+
+int PersistDB::Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp) {
+    // TODO: persist db commit
+    std::lock_guard<std::mutex> lockGuard(this->commitLock);
+    int flushRes = logManager->Flush(logs);
+    DCHECK_EQ(flushRes, 0);
+    commitStamp = mvcc::GetTxnStamp();
+    for (auto &logItem: logs) {
+        auto &log = logItem.second;
+        int ret = this->Update(log.id, log.key, log.val, commitStamp);
+        DCHECK_EQ(ret, 0);
+    }
+    return 0;
+}
+
 
 
 } // namespace mvcc;

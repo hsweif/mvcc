@@ -15,11 +15,11 @@ public:
 
     Parser(const std::string &fileDir) : mFileDir(fileDir) {}
     int ParseOperations(const std::string &fileName, std::vector<Operation> &res) const;
+    Operation ParseOperation(const std::string &line) const;
     int ParseTxns(const std::vector<Operation> &rawOperations, std::vector<Txn> &res) const;
 
 private:
     std::string mFileDir;
-    Operation ParseOperation(const std::string &line) const;
     MathOp GetMathOp(char c) const;
 };
 
