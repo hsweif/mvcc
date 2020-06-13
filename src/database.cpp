@@ -61,7 +61,7 @@ void Database::BeginTxn(TxnId id, bool includeSet) {
 MemoryDB::MemoryDB() {
 }
 
-int Database::Insert(TxnId id, const KeyType &key, const ValueType &val) {
+int MemoryDB::Insert(TxnId id, const KeyType &key, const ValueType &val) {
     // Should add mutex in following assignments
     TxnStamp stamp = mvcc::GetTxnStamp();
     return Insert(id, key, val, stamp);
@@ -200,7 +200,7 @@ int PersistDB::LoadSnapshot() {
         Insert(id, key, value, stamp);
     }
     file.close();
-    // logManager->Redo(this);
+    logManager->Redo(this);
     return 0;
 }
 

@@ -54,6 +54,7 @@ enum class OP {
     INSERT,
     DELETE,
     ABORT,
+    KILL,
     INVALID
 };
 
@@ -158,7 +159,7 @@ struct TxnLog {
 };
 
 inline std::ostream &operator<<(std::ostream &output, const TxnLog &txnLog) {
-    output << txnLog.id << " " << txnLog.stamp << " " << txnLog.key << " " << txnLog.val;
+    output << "[id: " << txnLog.id << "], [stamp: " << txnLog.stamp << "], [key: " << txnLog.key << "], [value: " << txnLog.val << "]";
     return output;
 }
 

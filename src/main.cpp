@@ -132,7 +132,7 @@ void TestPersistDB() {
     std::string fileDir = "../judge/";
     auto database = std::make_shared<PersistDB>(fileDir + "testdb.bin", fileDir + "log.bin");
     std::shared_ptr<Database> base = std::dynamic_pointer_cast<Database>(database);
-    database->LoadSnapshot();
+    // database->LoadSnapshot();
     // database->ResetLog();
     // Preparation(fileDir, "data_prepare.txt", base);
     // const int threadNum = 4;

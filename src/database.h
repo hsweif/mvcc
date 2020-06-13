@@ -32,7 +32,7 @@ public:
     virtual int Read(TxnId id, const KeyType &key, TxnLog &res, const TxnStamp &readStamp) const = 0;
     virtual int Insert(TxnId id, const KeyType &key, const ValueType &val, TxnStamp stamp) = 0;
     virtual int Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp) = 0;
-    int Insert(TxnId id, const KeyType &key, const ValueType &val);
+    virtual int Insert(TxnId id, const KeyType &key, const ValueType &val) = 0;
     std::shared_ptr<std::mutex> RequestDbLock();
     void BeginTxn(TxnId id, bool includeSet);
 
@@ -50,6 +50,7 @@ class MemoryDB : public Database {
 public:
     MemoryDB();
     int Read(TxnId id, const KeyType &key, TxnLog &res, const TxnStamp &readStamp) const override;
+    int Insert(TxnId id, const KeyType &key, const ValueType &val) override ;
     int Insert(TxnId id, const KeyType &key, const ValueType &val, TxnStamp stamp) override;
     int Update(TxnId, const KeyType &key, ValueType val, const TxnStamp &stamp) override;
     int Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp) override;

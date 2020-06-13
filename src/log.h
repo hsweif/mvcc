@@ -16,11 +16,12 @@ public:
     int ResetLogFile();
     int Flush(const std::map<KeyType, TxnLog> &logs);
     int Redo(PersistDB *database);
+    int LoadMeta(uint32_t &offset, uint32_t &checkpointPos);
+    int Load(std::map<KeyType, TxnLog> &logs);
 
 private:
     std::string fileName;
     std::mutex flushMutex;
-    uint32_t flushPos; // Flush 完之后最新的在文件中的位移
 };
 
 } // namespace mvcc

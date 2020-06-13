@@ -20,12 +20,12 @@ int Parser::ParseOperations(const std::string &fileName, std::vector<Operation> 
     while (!file.eof()) {
         std::string line;
         getline(file, line);
-        if(line[0] == '\0' || line[0] == '\n') {
+        if (line[0] == '\0' || line[0] == '\n') {
             // Skip blank lines.
             continue;
         }
         Operation operation = ParseOperation(line);
-        if(operation.op == OP::INVALID) {
+        if (operation.op == OP::INVALID) {
             LOG(ERROR) << "Fail to parse. Invalid operation";
             return 1;
         }
@@ -70,6 +70,8 @@ Operation Parser::ParseOperation(const std::string &line) const {
     } else if (operation == "DELETE") {
         iss >> key;
         return Operation(OP::DELETE, key);
+    } else if (operation == "KILL") {
+        // TODO: Kill the program
     } else {
         return Operation(); // INVALID
     }
@@ -92,25 +94,22 @@ MathOp Parser::GetMathOp(char c) const {
 int Parser::ParseTxns(const std::vector<Operation> &rawOperations, std::vector<Txn> &res) const {
     CHECK(res.empty());
     auto iter = rawOperations.begin();
-    while(iter != rawOperations.end())
-    {
-        if(iter->op == OP::BEGIN)
-        {
+    while (iter != rawOperations.end()) {
+        if (iter->op == OP::BEGIN) {
             Txn txn(iter->value); // The value of begin operation is the txn id.
-            iter ++;
-            while(iter->op != OP::COMMIT)
-            {
-                if(iter == rawOperations.end()) {
+            iter++;
+            while (iter->op != OP::COMMIT) {
+                if (iter == rawOperations.end()) {
                     LOG(ERROR) << "Invalid txns. Unpaired begin-commit exist.";
                     return 1;
                 }
                 txn.AddOp(*iter);
-                iter ++;
+                iter++;
             }
             // Commit this txn.
             res.push_back(txn);
         }
-        iter ++;
+        iter++;
     }
     return 0;
 }
