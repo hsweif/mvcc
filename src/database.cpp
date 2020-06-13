@@ -109,7 +109,7 @@ std::ostream &operator<<(std::ostream &output, const MemoryDB &memoryDB) {
 }
 
 
-int MemoryDB::Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp) {
+int MemoryDB::Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp, int threadIdx) {
     std::lock_guard<std::mutex> lockGuard(commitLock);
     commitStamp = mvcc::GetTxnStamp();
     for (auto &logItem: logs) {
@@ -132,8 +132,13 @@ int MemoryDB::Update(TxnId id, const KeyType &key, ValueType val, const TxnStamp
 }
 
 
-PersistDB::PersistDB(std::string fileName, std::string logName): fileName(std::move(fileName)) {
-    logManager = std::make_unique<LogManager>(logName);
+PersistDB::PersistDB(std::string fileName, std::string logName, int threadNum) :
+        fileName(std::move(fileName)), threadNum(threadNum), commitCount(0) {
+    logManager = std::make_unique<LogManager>(logName, threadNum);
+    executedId = std::unique_ptr<int[]>(new int[threadNum]);
+    for(int i = 0; i < threadNum; i ++) {
+        executedId[i] = -1;
+    }
 }
 
 int PersistDB::SaveSnapshot() {
@@ -141,7 +146,6 @@ int PersistDB::SaveSnapshot() {
      * Snapshot format (a single record)
      * uint64 stamp | uint32 id | uint32 key_length | (key_length bytes) key | int value
      */
-    std::lock_guard<std::mutex> lockGuard(commitLock);
     std::ofstream file;
     file.open(fileName, std::ios_base::binary);
     if (!file.is_open()) {
@@ -152,6 +156,11 @@ int PersistDB::SaveSnapshot() {
     const uint32_t recordNum = mStorage.size();
     file.write(reinterpret_cast<const char *>(&recordNum), sizeof(recordNum));
     file.write(reinterpret_cast<const char *>(&saveStamp), sizeof(saveStamp));
+    file.write(reinterpret_cast<const char *>(&logManager->threadNum), sizeof(logManager->threadNum));
+    for (int i = 0; i < logManager->threadNum; i++) {
+        // Use logManager's txnPos to save. But use executedId to load.
+        file.write(reinterpret_cast<const char *>(&logManager->txnPos[i]), sizeof(logManager->txnPos[i]));
+    }
     for (const auto &item: mStorage) {
         const KeyType &key = item.first;
         const LogList &logList = item.second;
@@ -165,6 +174,7 @@ int PersistDB::SaveSnapshot() {
         file.write(c, keyLength);
         file.write(reinterpret_cast<const char *>(&resLog.val), sizeof(resLog.val));
     }
+    logManager->FlushMeta();
     file.close();
     return 0;
 }
@@ -181,6 +191,11 @@ int PersistDB::LoadSnapshot() {
     TxnStamp cacheStamp;
     file.read(reinterpret_cast<char *>(&recordNum), sizeof(recordNum));
     file.read(reinterpret_cast<char *>(&cacheStamp), sizeof(cacheStamp));
+    file.read(reinterpret_cast<char *>(&threadNum), sizeof(threadNum));
+    logManager->threadNum = threadNum;
+    for (int i = 0; i < logManager->threadNum; i++) {
+        file.read(reinterpret_cast<char *>(&executedId[i]), sizeof(executedId[i]));
+    }
     InitTxnStamp(cacheStamp);
     for (uint32_t i = 0; i < recordNum; i++) {
         TxnStamp stamp;
@@ -193,7 +208,7 @@ int PersistDB::LoadSnapshot() {
         char c[keyLength];
         file.read(c, keyLength);
         KeyType key;
-        for(uint32_t k = 0; k < keyLength; k ++) {
+        for (uint32_t k = 0; k < keyLength; k++) {
             key += c[k];
         }
         file.read(reinterpret_cast<char *>(&value), sizeof(value));
@@ -204,10 +219,11 @@ int PersistDB::LoadSnapshot() {
     return 0;
 }
 
-int PersistDB::Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp) {
+int PersistDB::Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp, int threadIdx) {
     // TODO: persist db commit
+    CheckSave();
     std::lock_guard<std::mutex> lockGuard(this->commitLock);
-    int flushRes = logManager->Flush(logs);
+    int flushRes = logManager->Flush(id, logs, threadIdx);
     DCHECK_EQ(flushRes, 0);
     commitStamp = mvcc::GetTxnStamp();
     for (auto &logItem: logs) {
@@ -221,17 +237,27 @@ int PersistDB::Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commi
 int PersistDB::Redo() {
     std::map<KeyType, TxnLog> logs;
     int loadRet = logManager->Load(logs);
-    if(loadRet) {
+    if (loadRet) {
         LOG(WARNING) << "Unable to redo from the log.";
         return 1;
     }
-    for(const auto &item: logs){
+    for (const auto &item: logs) {
         std::cout << "Redo..." << std::endl;
         const KeyType &key = item.first;
         const TxnLog &log = item.second;
-        if(Update(log.id, log.key, log.val, log.stamp)) {
+        if (Update(log.id, log.key, log.val, log.stamp)) {
             Insert(log.id, log.key, log.val, log.stamp);
         }
+    }
+    return 0;
+}
+
+int PersistDB::CheckSave() {
+    std::lock_guard<std::mutex> lockGuard(commitLock);
+    commitCount ++;
+    if(commitCount > 1000) {
+        commitCount = 0;
+        return SaveSnapshot();
     }
     return 0;
 }

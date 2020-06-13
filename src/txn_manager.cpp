@@ -16,7 +16,7 @@ void TxnLogBuffer::UpdateCacheVal(KeyType key, const ValueType &val) {
     cacheVal[key] = val;
 }
 
-TxnManager::TxnManager(std::shared_ptr<Database> database) {
+TxnManager::TxnManager(std::shared_ptr<Database> database, int threadIdx): threadIdx(threadIdx) {
     mDatabase = std::shared_ptr<Database>(database);
 }
 
@@ -100,7 +100,7 @@ int TxnManager::Execute(const Txn &txn, TxnResult &txnResult) {
     }
     txnResult.opRes = std::vector<TxnResult::OpRes>(tmpRes);
     if (lockGuard != nullptr) {
-        mDatabase->Commit(id, updateLogs, txnResult.endStamp);
+        mDatabase->Commit(id, updateLogs, txnResult.endStamp, threadIdx);
     } else {
         mDatabase->Commit();
         txnResult.endStamp = mvcc::GetTxnStamp();

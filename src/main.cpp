@@ -30,29 +30,8 @@ void Preparation(const std::string &fileDir, const std::string &fileName,
     }
 }
 
-void Interactive(const std::string &fileDir, const std::shared_ptr<Database> database) {
-    std::string command;
-    Parser parser(fileDir);
-    std::vector<Operation> operations;
-    auto txnManager = std::make_unique<TxnManager>(database);
-    while (getline(std::cin, command)) {
-        Operation operation = parser.ParseOperation(command);
-        if (operation.op == OP::INSERT) {
-            database->Insert(INSERT_NO_ID, operation.key, operation.value);
-            continue;
-        }
-        if (operation.op == OP::BEGIN) {
-            operations.clear();
-        }
-        operations.push_back(operation);
-        if (operation.op == OP::COMMIT) {
-            std::vector<Txn> txns;
-            parser.ParseTxns(operations, txns);
-        }
-    }
-}
-
-void ExecuteTxns(const std::string &fileDir, int index, const std::shared_ptr<Database> database) {
+void ExecuteTxns(const std::string &fileDir, int threadIdx, const std::shared_ptr<Database> database) {
+    int index = threadIdx + 1;
     const std::string fileName = "thread_" + std::to_string(index) + ".txt";
     LOG(INFO) << "Executing txns in " << fileName;
     Parser parser = Parser(fileDir);
@@ -62,7 +41,7 @@ void ExecuteTxns(const std::string &fileDir, int index, const std::shared_ptr<Da
     DCHECK_EQ(ret, 0);
     ret = parser.ParseTxns(operations, txns);
     DCHECK_EQ(ret, 0);
-    std::unique_ptr<TxnManager> txnManager = std::make_unique<TxnManager>(database);
+    std::unique_ptr<TxnManager> txnManager = std::make_unique<TxnManager>(database, threadIdx);
     std::vector<TxnResult> txnResults;
     printf("Thread %d begin first txn at%llu\n", index, GetClock());
     for (Txn &txn: txns) {
@@ -111,7 +90,7 @@ void TestMVCC() {
 
 
     for (int i = 0; i < threadNum; i++) {
-        threads[i] = std::thread(ExecuteTxns, fileDir, i + 1, database);
+        threads[i] = std::thread(ExecuteTxns, fileDir, i, database);
     }
 
     for (int i = 0; i < threadNum; i++) {
@@ -144,7 +123,7 @@ void TestPersistDB(bool redoFlag) {
     const int threadNum = 4;
     std::thread threads[threadNum];
     for (int i = 0; i < threadNum; i++) {
-        threads[i] = std::thread(ExecuteTxns, fileDir, i + 1, database);
+        threads[i] = std::thread(ExecuteTxns, fileDir, i, database);
     }
     for (int i = 0; i < threadNum; i++) {
         threads[i].join();

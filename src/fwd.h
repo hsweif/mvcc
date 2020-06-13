@@ -25,7 +25,7 @@ namespace mvcc {
 
 typedef int ValueType;
 typedef std::string KeyType;
-typedef uint32_t TxnId;
+typedef int TxnId;
 typedef uint64_t TxnStamp;
 
 // Used for initialization in assignment 1

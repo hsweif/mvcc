@@ -31,13 +31,17 @@ public:
     Database();
     virtual int Read(TxnId id, const KeyType &key, TxnLog &res, const TxnStamp &readStamp) const = 0;
     virtual int Insert(TxnId id, const KeyType &key, const ValueType &val, TxnStamp stamp) = 0;
-    virtual int Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp) = 0;
+    virtual int Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp, int threadIdx) = 0;
     virtual int Insert(TxnId id, const KeyType &key, const ValueType &val) = 0;
     std::shared_ptr<std::mutex> RequestDbLock();
     void BeginTxn(TxnId id, bool includeSet);
 
     virtual inline void Commit() const {
         std::lock_guard<std::mutex> lockGuard(commitLock);
+    }
+
+    virtual bool Executed(int threadIdx, TxnId id) {
+        return false;
     }
 
     virtual int Update(TxnId, const KeyType &key, ValueType val, const TxnStamp &stamp) = 0;
@@ -53,7 +57,7 @@ public:
     int Insert(TxnId id, const KeyType &key, const ValueType &val) override ;
     int Insert(TxnId id, const KeyType &key, const ValueType &val, TxnStamp stamp) override;
     int Update(TxnId, const KeyType &key, ValueType val, const TxnStamp &stamp) override;
-    int Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp) override;
+    int Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp, int threadIdx) override;
     friend std::ostream &operator<<(std::ostream &output, const MemoryDB &momoryDB);
 
     int RecordNum() const {
@@ -66,19 +70,29 @@ protected:
 
 class PersistDB : public MemoryDB {
 public:
-    explicit PersistDB(std::string fileName, std::string logName);
+    explicit PersistDB(std::string fileName, std::string logName, int threadNum = 1);
     int LoadSnapshot();
     int SaveSnapshot();
-    int Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp) override;
+    int Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp, int threadIdx) override;
     int ResetLog() {
         logManager->ResetLogFile();
     }
     int Redo();
+    int CheckSave();
+
+    bool Executed(int threadIdx, TxnId id) override {
+        DCHECK_LT(threadIdx, logManager->threadNum);
+        return id <= executedId[threadIdx];
+    }
 
 protected:
     std::string fileName;
     std::unique_ptr<LogManager> logManager;
+    std::unique_ptr<int[]> executedId;
+    int threadNum;
+    int commitCount;
 };
+
 
 } // namespace mvcc
 

@@ -24,11 +24,12 @@ private:
 
 class TxnManager {
 public:
-    TxnManager(std::shared_ptr<Database> database);
+    TxnManager(std::shared_ptr<Database> database, int threadIdx);
     int Execute(const Txn &txn, TxnResult &txnResult);
 
 private:
     std::shared_ptr<Database> mDatabase;
+    int threadIdx;
 };
 
 }

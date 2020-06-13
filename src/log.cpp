@@ -9,7 +9,7 @@
 namespace mvcc {
 
 
-int LogManager::Flush(const std::map<KeyType, TxnLog> &logs) {
+int LogManager::Flush(TxnId id, const std::map<KeyType, TxnLog> &logs, int threadIdx) {
     // TODO: Flush to the file.
     std::lock_guard<std::mutex> lockGuard(flushMutex);
     std::fstream file;
@@ -31,6 +31,7 @@ int LogManager::Flush(const std::map<KeyType, TxnLog> &logs) {
     file.seekp(0, std::ios::beg);
     logNum ++;
     file.write(reinterpret_cast<const char*>(&logNum), sizeof(logNum));
+    UpdateTxnPos(threadIdx, id);
     // file.write(reinterpret_cast<const char *>(&offset), sizeof(offset)); // Update the offset.
     file.close();
     return 0;
@@ -60,6 +61,22 @@ int LogManager::LoadMeta() {
     return 0;
 }
 
+int LogManager::FlushMeta() {
+    std::lock_guard<std::mutex> lockGuard(flushMutex);
+    checkPointPos = logNum;
+    std::fstream file;
+    file.open(fileName, std::ios::binary | std::ios::in | std::ios::out);
+    if(!file.is_open()) {
+        LOG(ERROR) << "Fail to load meta information of log file";
+        return 1;
+    }
+    file.seekp(0, std::ios::beg);
+    file.write(reinterpret_cast<char *>(&logNum), sizeof(logNum));
+    file.write(reinterpret_cast<char *>(&checkPointPos), sizeof(checkPointPos));
+    file.close();
+    return 0;
+}
+
 int LogManager::Load(std::map<KeyType, TxnLog> &logs) {
     logs.clear();
     if(logNum == 0 && checkPointPos == 0 && LoadMeta()) {
@@ -69,8 +86,7 @@ int LogManager::Load(std::map<KeyType, TxnLog> &logs) {
     printf("log num: %d, checkpoint pos: %d\n", logNum, checkPointPos);
     std::fstream file;
     file.open(fileName, std::ios::binary | std::ios::in | std::ios::out);
-    uint32_t curPos = checkPointPos == 0 ? 8 : checkPointPos;
-    file.seekg(curPos, std::ios::beg);
+    file.seekg(8, std::ios::beg); // Pass two int
     for(uint32_t i = 0; i < logNum; i ++){
         TxnLog txnLog;
         Deserialize(file, txnLog);
@@ -82,6 +98,14 @@ int LogManager::Load(std::map<KeyType, TxnLog> &logs) {
     }
     // file.seekg(1, std::ios::beg);
     // file.write(reinterpret_cast<const char *>(&curPos), sizeof(curPos));
+    return 0;
+}
+
+int LogManager::UpdateTxnPos(int threadIdx, TxnId id) {
+    if(threadIdx >= threadNum || threadIdx <0 ) {
+        return 1;
+    }
+    txnPos[threadIdx] = std::max(txnPos[threadIdx], id);
     return 0;
 }
 
