@@ -45,6 +45,7 @@ class PersistDBTest: public ::testing::Test {
 protected:
     void SetUp() override {
         database = std::make_unique<PersistDB>(dbName, logName);
+        database->Reset();
         database->Insert(INSERT_NO_ID, "test", 23);
     }
 
@@ -60,6 +61,26 @@ TEST_F(PersistDBTest, TestIO) {
     EXPECT_EQ(testDb->RecordNum(), 0);
     EXPECT_EQ(testDb->LoadSnapshot(), 0);
     EXPECT_EQ(testDb->RecordNum(), database->RecordNum());
+}
+
+TEST_F(PersistDBTest, TestRecovery) {
+    auto recoverDB = std::make_unique<PersistDB>(dbName, logName);
+    const KeyType tmpKey = "test";
+    std::map<KeyType, TxnLog> logs;
+    logs[tmpKey] = TxnLog(0, tmpKey, 33, 0);
+    EXPECT_EQ(0, database->Commit(0, logs, 1));
+    TxnLog res, reRes;
+    TxnStamp stamp = 2;
+    TxnId tmpId = 3;
+    EXPECT_EQ(0, database->Read(tmpId, tmpKey, res, stamp));
+    EXPECT_EQ(res.val, 33);
+    EXPECT_EQ(1, recoverDB->Read(tmpId, tmpKey, reRes, stamp));
+    EXPECT_EQ(0, recoverDB->LoadSnapshot());
+    EXPECT_EQ(1, recoverDB->Read(tmpId, tmpKey, reRes, stamp));
+    EXPECT_EQ(0, recoverDB->Redo());
+    EXPECT_EQ(0, recoverDB->Read(tmpId, tmpKey, reRes, stamp));
+    EXPECT_EQ(reRes.val, 33);
+    EXPECT_EQ(0, database->SaveSnapshot());
 }
 
 } // namespace mvcc

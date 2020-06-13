@@ -74,7 +74,7 @@ struct Operation {
 
     Operation() : op(OP::INVALID), mathOp(MathOp::INVALID) {}
 
-    Operation(OP op): op(op) {
+    Operation(OP op) : op(op) {
         DCHECK(op == OP::ABORT);
     }
 
@@ -151,6 +151,10 @@ struct TxnLog {
         op = txnLog.op;
     }
 
+    bool operator==(const TxnLog &log) const {
+        return id == log.id && key == log.key && val == log.val && stamp == log.stamp && op == log.op;
+    }
+
     TxnLog() : id(INVALID_ID) {}
 
     TxnLog(TxnId id, KeyType key, ValueType val, TxnStamp stamp, OP op = OP::SET) :
@@ -159,11 +163,13 @@ struct TxnLog {
 };
 
 inline std::ostream &operator<<(std::ostream &output, const TxnLog &txnLog) {
-    output << "[id: " << txnLog.id << "], [stamp: " << txnLog.stamp << "], [key: " << txnLog.key << "], [value: " << txnLog.val << "]";
+    output << "[id: " << txnLog.id << "], [stamp: " << txnLog.stamp << "], [key: " << txnLog.key << "], [value: "
+           << txnLog.val << "]";
     return output;
 }
 
 inline void Deserialize(std::istream &is, TxnLog &log, uint32_t &offset) {
+    is.read(reinterpret_cast<char *>(&log.op), sizeof(log.op));
     is.read(reinterpret_cast<char *>(&log.stamp), sizeof(log.stamp));
     is.read(reinterpret_cast<char *>(&log.id), sizeof(log.id));
     uint32_t keyLength;
@@ -179,6 +185,7 @@ inline void Deserialize(std::istream &is, TxnLog &log, uint32_t &offset) {
 }
 
 inline void Serialize(std::ostream &os, const TxnLog &log, uint32_t &offset) {
+    os.write(reinterpret_cast<const char *>(&log.op), sizeof(log.op));
     os.write(reinterpret_cast<const char *>(&log.stamp), sizeof(log.stamp));
     os.write(reinterpret_cast<const char *>(&log.id), sizeof(log.id));
     uint32_t keyLength = log.key.size();

@@ -10,17 +10,14 @@ namespace mvcc {
 
 
 int LogManager::Flush(const std::map<KeyType, TxnLog> &logs) {
-    // TODO: Flush to the file.
     std::lock_guard<std::mutex> lockGuard(flushMutex);
+    DCHECK_NE(0, offset);
     std::fstream file;
     file.open(fileName, std::ios::binary | std::ios::out | std::ios::in);
     if (!file.is_open()) {
         LOG(WARNING) << "Unable to flush the logs to the disk";
         return 1;
     }
-    uint32_t offset, checkpointPos;
-    file.read(reinterpret_cast<char *>(&offset), sizeof(offset));
-    file.read(reinterpret_cast<char *>(&checkpointPos), sizeof(checkpointPos));
     file.seekp(offset, std::ios::beg);
     for (const auto &item: logs) {
         const KeyType &key = item.first;
@@ -29,34 +26,10 @@ int LogManager::Flush(const std::map<KeyType, TxnLog> &logs) {
         Serialize(file, log, delta);
         offset += delta;
     }
+    // Update the offset.
     file.seekp(0, std::ios::beg);
-    file.write(reinterpret_cast<const char *>(&offset), sizeof(offset)); // Update the offset.
+    file.write(reinterpret_cast<const char *>(&offset), sizeof(offset));
     file.close();
-    return 0;
-}
-
-int LogManager::Redo(PersistDB *database) {
-    std::lock_guard<std::mutex> lockGuard(flushMutex);
-    std::fstream file;
-    file.open(fileName, std::ios::binary | std::ios::in | std::ios::out);
-    uint32_t offset, checkpointPos;
-    file.read(reinterpret_cast<char *>(&offset), sizeof(offset));
-    file.read(reinterpret_cast<char *>(&checkpointPos), sizeof(checkpointPos));
-    file.seekg(checkpointPos, std::ios::beg);
-    uint32_t curPos = checkpointPos;
-    while (curPos < offset) {
-        uint32_t delta;
-        TxnLog txnLog;
-        Deserialize(file, txnLog, delta);
-        if (txnLog.op == OP::SET) {
-            database->Update(txnLog.id, txnLog.key, txnLog.val, txnLog.stamp);
-        }
-        // FIXME: Should consider insert?
-        std::cout << curPos << ", " << txnLog << std::endl;
-        curPos += delta;
-    }
-    file.seekg(1, std::ios::beg);
-    file.write(reinterpret_cast<const char *>(&curPos), sizeof(curPos));
     return 0;
 }
 
@@ -64,7 +37,7 @@ int LogManager::ResetLogFile() {
     std::lock_guard<std::mutex> lockGuard(flushMutex);
     std::ofstream file;
     file.open(fileName, std::ios::binary | std::ios::out);
-    uint32_t checkPointPos = 0, offset = 0;
+    checkPointPos = 0;
     offset = sizeof(offset) + sizeof(checkPointPos);
     file.write(reinterpret_cast<const char *>(&offset), sizeof(offset));
     file.write(reinterpret_cast<const char *>(&checkPointPos), sizeof(checkPointPos));
@@ -72,23 +45,24 @@ int LogManager::ResetLogFile() {
     return 0;
 }
 
-int LogManager::LoadMeta(uint32_t &offset, uint32_t &checkpointPos) {
+int LogManager::LoadMeta() {
+    // Should not add lock guard, as it will be called by other function with a mutex
     std::ifstream file;
     file.open(fileName, std::ios::binary);
-    if(!file.is_open()) {
+    if (!file.is_open()) {
         LOG(ERROR) << "Fail to load meta information of log file";
         return 1;
     }
     file.read(reinterpret_cast<char *>(&offset), sizeof(offset));
-    file.read(reinterpret_cast<char *>(&checkpointPos), sizeof(checkpointPos));
+    file.read(reinterpret_cast<char *>(&checkPointPos), sizeof(checkPointPos));
     file.close();
     return 0;
 }
 
 int LogManager::Load(std::map<KeyType, TxnLog> &logs) {
+    std::lock_guard<std::mutex> lockGuard(flushMutex);
     logs.clear();
-    uint32_t checkPointPos, offset;
-    if(LoadMeta(offset, checkPointPos)) {
+    if (LoadMeta()) {
         LOG(ERROR) << "Fail to load checkpoints";
         return 1;
     }
@@ -105,9 +79,30 @@ int LogManager::Load(std::map<KeyType, TxnLog> &logs) {
         std::cout << "TxnLog loaded: " << curPos << ", " << txnLog << std::endl;
         curPos += delta;
     }
-    file.seekg(1, std::ios::beg);
-    file.write(reinterpret_cast<const char *>(&curPos), sizeof(curPos));
+    checkPointPos = curPos;
     return 0;
 }
+
+int LogManager::FlushMeta() const {
+    std::lock_guard<std::mutex> lockGuard(flushMutex);
+    std::fstream file;
+    file.open(fileName, std::ios::binary | std::ios::in | std::ios::out);
+    if (!file.is_open()) {
+        return 1;
+    }
+    file.write(reinterpret_cast<const char *>(&offset), sizeof(offset));
+    file.write(reinterpret_cast<const char *>(&checkPointPos), sizeof(checkPointPos));
+    file.close();
+    return 0;
+}
+
+int LogManager::UpdateCheckpoint() {
+    checkPointPos = offset;
+    return 0;
+}
+
+uint32_t LogManager::GetOffset() const { return offset; }
+
+uint32_t LogManager::GetCheckpointPos() const { return checkPointPos; }
 
 }

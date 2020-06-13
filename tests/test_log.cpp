@@ -21,8 +21,8 @@ protected:
 };
 
 TEST_F(WALogTest, TestLoadMeta) {
-    uint32_t offset, checkpointPos;
-    EXPECT_EQ(0, logManager->LoadMeta(offset, checkpointPos));
+    EXPECT_EQ(0, logManager->LoadMeta());
+    uint32_t offset = logManager->GetOffset(), checkpointPos = logManager->GetCheckpointPos();
     EXPECT_EQ(offset, 8);
     EXPECT_EQ(checkpointPos, 0);
 }
@@ -30,11 +30,14 @@ TEST_F(WALogTest, TestLoadMeta) {
 TEST_F(WALogTest, TestFlush) {
     std::map<KeyType, TxnLog> logs, loadedLogs;
     logs["test"] = TxnLog(0, "test", 23, 0);
+    logs["attr_a"] = TxnLog(1, "attr_a", 666, 1);
     logManager->Flush(logs);
-    uint32_t offset, checkpointPos;
-    EXPECT_EQ(0, logManager->LoadMeta(offset, checkpointPos));
-    printf("%d %d\n", offset, checkpointPos);
     EXPECT_TRUE(loadedLogs.empty());
     EXPECT_EQ(0, logManager->Load(loadedLogs));
-    EXPECT_FALSE(loadedLogs.empty());
+    EXPECT_EQ(logs.size(), loadedLogs.size());
+    for(const auto &item: logs) {
+        const KeyType &key = item.first;
+        EXPECT_EQ(logs[key], loadedLogs[key]);
+    }
+    EXPECT_EQ(0, logManager->FlushMeta());
 }

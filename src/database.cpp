@@ -109,7 +109,7 @@ std::ostream &operator<<(std::ostream &output, const MemoryDB &memoryDB) {
 }
 
 
-int MemoryDB::Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp) {
+int MemoryDB::Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp commitStamp) {
     std::lock_guard<std::mutex> lockGuard(commitLock);
     commitStamp = mvcc::GetTxnStamp();
     for (auto &logItem: logs) {
@@ -132,7 +132,7 @@ int MemoryDB::Update(TxnId id, const KeyType &key, ValueType val, const TxnStamp
 }
 
 
-PersistDB::PersistDB(std::string fileName, std::string logName): fileName(std::move(fileName)) {
+PersistDB::PersistDB(std::string fileName, std::string logName) : fileName(std::move(fileName)) {
     logManager = std::make_unique<LogManager>(logName);
 }
 
@@ -166,6 +166,9 @@ int PersistDB::SaveSnapshot() {
         file.write(reinterpret_cast<const char *>(&resLog.val), sizeof(resLog.val));
     }
     file.close();
+    // FIXME: Not sure if it work.
+    logManager->UpdateCheckpoint();
+    logManager->FlushMeta();
     return 0;
 }
 
@@ -193,23 +196,24 @@ int PersistDB::LoadSnapshot() {
         char c[keyLength];
         file.read(c, keyLength);
         KeyType key;
-        for(uint32_t k = 0; k < keyLength; k ++) {
+        for (uint32_t k = 0; k < keyLength; k++) {
             key += c[k];
         }
         file.read(reinterpret_cast<char *>(&value), sizeof(value));
         Insert(id, key, value, stamp);
     }
     file.close();
-    logManager->Redo(this);
+    logManager->LoadMeta();
+    // logManager->Redo(this);
     return 0;
 }
 
-int PersistDB::Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp) {
+int PersistDB::Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp commitStamp) {
     // TODO: persist db commit
     std::lock_guard<std::mutex> lockGuard(this->commitLock);
     int flushRes = logManager->Flush(logs);
     DCHECK_EQ(flushRes, 0);
-    commitStamp = mvcc::GetTxnStamp();
+    // commitStamp = mvcc::GetTxnStamp(); // FIXME: Should get a new stamp here?
     for (auto &logItem: logs) {
         auto &log = logItem.second;
         int ret = this->Update(log.id, log.key, log.val, commitStamp);
@@ -218,6 +222,33 @@ int PersistDB::Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commi
     return 0;
 }
 
+int PersistDB::Reset() {
+    // Reset the log file and the database snapshot.
+    logManager->ResetLogFile();
+    std::ofstream file;
+    file.open(fileName, std::ios::binary);
+    file.close();
+}
+
+int PersistDB::Redo() {
+    std::map<KeyType, TxnLog> cacheLogs;
+    int loadRet = logManager->Load(cacheLogs);
+    if (loadRet) {
+        LOG(WARNING) << "Fail to redo.";
+        return 1;
+    }
+    for (auto &item: cacheLogs) {
+        const KeyType &key = item.first;
+        TxnLog &log = item.second;
+        if(log.op == OP::SET) {
+            if(Update(log.id, log.key, log.val, log.stamp)) {
+                // FIXME: Should I use prepare instead?
+                Insert(log.id, log.key, log.val, log.stamp);
+            }
+        }
+    }
+    return 0;
+}
 
 
 } // namespace mvcc;
