@@ -163,7 +163,7 @@ inline std::ostream &operator<<(std::ostream &output, const TxnLog &txnLog) {
     return output;
 }
 
-inline void Deserialize(std::istream &is, TxnLog &log, uint32_t &offset) {
+inline void Deserialize(std::istream &is, TxnLog &log) {
     is.read(reinterpret_cast<char *>(&log.stamp), sizeof(log.stamp));
     is.read(reinterpret_cast<char *>(&log.id), sizeof(log.id));
     uint32_t keyLength;
@@ -175,10 +175,10 @@ inline void Deserialize(std::istream &is, TxnLog &log, uint32_t &offset) {
         log.key += c[i];
     }
     is.read(reinterpret_cast<char *>(&log.val), sizeof(log.val));
-    offset = sizeof(log.id) + sizeof(keyLength) + keyLength * sizeof(char) + sizeof(log.val) + sizeof(log.stamp);
+    // offset = sizeof(log.id) + sizeof(keyLength) + keyLength * sizeof(char) + sizeof(log.val) + sizeof(log.stamp);
 }
 
-inline void Serialize(std::ostream &os, const TxnLog &log, uint32_t &offset) {
+inline void Serialize(std::ostream &os, const TxnLog &log) {
     os.write(reinterpret_cast<const char *>(&log.stamp), sizeof(log.stamp));
     os.write(reinterpret_cast<const char *>(&log.id), sizeof(log.id));
     uint32_t keyLength = log.key.size();
@@ -186,7 +186,7 @@ inline void Serialize(std::ostream &os, const TxnLog &log, uint32_t &offset) {
     os.write(reinterpret_cast<const char *>(&keyLength), sizeof(keyLength));
     os.write(c, keyLength * sizeof(char));
     os.write(reinterpret_cast<const char *>(&log.val), sizeof(log.val));
-    offset = sizeof(log.id) + sizeof(keyLength) + keyLength * sizeof(char) + sizeof(log.val) + sizeof(log.stamp);
+    // offset = sizeof(log.id) + sizeof(keyLength) + keyLength * sizeof(char) + sizeof(log.val) + sizeof(log.stamp);
 }
 
 class Parser;

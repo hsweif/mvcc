@@ -11,17 +11,18 @@ namespace mvcc {
 
 class LogManager {
 public:
-    explicit LogManager(const std::string &fileName) : fileName(fileName) {}
+    explicit LogManager(const std::string &fileName) :
+            fileName(fileName), logNum(0), checkPointPos(0) {}
 
     int ResetLogFile();
     int Flush(const std::map<KeyType, TxnLog> &logs);
-    int Redo(PersistDB *database);
-    int LoadMeta(uint32_t &offset, uint32_t &checkpointPos);
+    int LoadMeta();
     int Load(std::map<KeyType, TxnLog> &logs);
 
 private:
     std::string fileName;
     std::mutex flushMutex;
+    uint32_t logNum, checkPointPos;
 };
 
 } // namespace mvcc

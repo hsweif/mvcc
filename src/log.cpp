@@ -18,95 +18,70 @@ int LogManager::Flush(const std::map<KeyType, TxnLog> &logs) {
         LOG(WARNING) << "Unable to flush the logs to the disk";
         return 1;
     }
-    uint32_t offset, checkpointPos;
-    file.read(reinterpret_cast<char *>(&offset), sizeof(offset));
-    file.read(reinterpret_cast<char *>(&checkpointPos), sizeof(checkpointPos));
-    file.seekp(offset, std::ios::beg);
+    // file.read(reinterpret_cast<char *>(&logNum), sizeof(logNum));
+    // file.read(reinterpret_cast<char *>(&checkPointPos), sizeof(checkPointPos));
+    file.seekp(0, std::ios::end);
+    // file.seekp(offset, std::ios::beg);
     for (const auto &item: logs) {
         const KeyType &key = item.first;
         const TxnLog &log = item.second;
-        uint32_t delta;
-        Serialize(file, log, delta);
-        offset += delta;
+        Serialize(file, log);
+        // offset += delta;
     }
     file.seekp(0, std::ios::beg);
-    file.write(reinterpret_cast<const char *>(&offset), sizeof(offset)); // Update the offset.
+    logNum ++;
+    file.write(reinterpret_cast<const char*>(&logNum), sizeof(logNum));
+    // file.write(reinterpret_cast<const char *>(&offset), sizeof(offset)); // Update the offset.
     file.close();
-    return 0;
-}
-
-int LogManager::Redo(PersistDB *database) {
-    std::lock_guard<std::mutex> lockGuard(flushMutex);
-    std::fstream file;
-    file.open(fileName, std::ios::binary | std::ios::in | std::ios::out);
-    uint32_t offset, checkpointPos;
-    file.read(reinterpret_cast<char *>(&offset), sizeof(offset));
-    file.read(reinterpret_cast<char *>(&checkpointPos), sizeof(checkpointPos));
-    file.seekg(checkpointPos, std::ios::beg);
-    uint32_t curPos = checkpointPos;
-    while (curPos < offset) {
-        uint32_t delta;
-        TxnLog txnLog;
-        Deserialize(file, txnLog, delta);
-        if (txnLog.op == OP::SET) {
-            database->Update(txnLog.id, txnLog.key, txnLog.val, txnLog.stamp);
-        }
-        // FIXME: Should consider insert?
-        std::cout << curPos << ", " << txnLog << std::endl;
-        curPos += delta;
-    }
-    file.seekg(1, std::ios::beg);
-    file.write(reinterpret_cast<const char *>(&curPos), sizeof(curPos));
     return 0;
 }
 
 int LogManager::ResetLogFile() {
     std::lock_guard<std::mutex> lockGuard(flushMutex);
     std::ofstream file;
+    logNum = checkPointPos = 0;
     file.open(fileName, std::ios::binary | std::ios::out);
-    uint32_t checkPointPos = 0, offset = 0;
-    offset = sizeof(offset) + sizeof(checkPointPos);
-    file.write(reinterpret_cast<const char *>(&offset), sizeof(offset));
+    file.write(reinterpret_cast<const char *>(&logNum), sizeof(logNum));
     file.write(reinterpret_cast<const char *>(&checkPointPos), sizeof(checkPointPos));
     file.close();
     return 0;
 }
 
-int LogManager::LoadMeta(uint32_t &offset, uint32_t &checkpointPos) {
+int LogManager::LoadMeta() {
     std::ifstream file;
     file.open(fileName, std::ios::binary);
     if(!file.is_open()) {
         LOG(ERROR) << "Fail to load meta information of log file";
         return 1;
     }
-    file.read(reinterpret_cast<char *>(&offset), sizeof(offset));
-    file.read(reinterpret_cast<char *>(&checkpointPos), sizeof(checkpointPos));
+    file.read(reinterpret_cast<char *>(&logNum), sizeof(logNum));
+    file.read(reinterpret_cast<char *>(&checkPointPos), sizeof(checkPointPos));
     file.close();
     return 0;
 }
 
 int LogManager::Load(std::map<KeyType, TxnLog> &logs) {
     logs.clear();
-    uint32_t checkPointPos, offset;
-    if(LoadMeta(offset, checkPointPos)) {
+    if(logNum == 0 && checkPointPos == 0 && LoadMeta()) {
         LOG(ERROR) << "Fail to load checkpoints";
         return 1;
     }
+    printf("log num: %d, checkpoint pos: %d\n", logNum, checkPointPos);
     std::fstream file;
     file.open(fileName, std::ios::binary | std::ios::in | std::ios::out);
     uint32_t curPos = checkPointPos == 0 ? 8 : checkPointPos;
     file.seekg(curPos, std::ios::beg);
-    while (curPos < offset) {
-        uint32_t delta;
+    for(uint32_t i = 0; i < logNum; i ++){
         TxnLog txnLog;
-        Deserialize(file, txnLog, delta);
-        const KeyType &key = txnLog.key;
-        logs[key] = txnLog;
-        std::cout << "TxnLog loaded: " << curPos << ", " << txnLog << std::endl;
-        curPos += delta;
+        Deserialize(file, txnLog);
+        if(i > checkPointPos) {
+            const KeyType &key = txnLog.key;
+            logs[key] = txnLog;
+        }
+        // std::cout << "TxnLog loaded: " << curPos << ", " << txnLog << std::endl;
     }
-    file.seekg(1, std::ios::beg);
-    file.write(reinterpret_cast<const char *>(&curPos), sizeof(curPos));
+    // file.seekg(1, std::ios::beg);
+    // file.write(reinterpret_cast<const char *>(&curPos), sizeof(curPos));
     return 0;
 }
 

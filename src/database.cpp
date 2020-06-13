@@ -200,7 +200,7 @@ int PersistDB::LoadSnapshot() {
         Insert(id, key, value, stamp);
     }
     file.close();
-    logManager->Redo(this);
+    Redo();
     return 0;
 }
 
@@ -218,6 +218,23 @@ int PersistDB::Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commi
     return 0;
 }
 
+int PersistDB::Redo() {
+    std::map<KeyType, TxnLog> logs;
+    int loadRet = logManager->Load(logs);
+    if(loadRet) {
+        LOG(WARNING) << "Unable to redo from the log.";
+        return 1;
+    }
+    for(const auto &item: logs){
+        std::cout << "Redo..." << std::endl;
+        const KeyType &key = item.first;
+        const TxnLog &log = item.second;
+        if(Update(log.id, log.key, log.val, log.stamp)) {
+            Insert(log.id, log.key, log.val, log.stamp);
+        }
+    }
+    return 0;
+}
 
 
 } // namespace mvcc;

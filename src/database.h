@@ -73,6 +73,7 @@ public:
     int ResetLog() {
         logManager->ResetLogFile();
     }
+    int Redo();
 
 protected:
     std::string fileName;
