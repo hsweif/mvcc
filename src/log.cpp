@@ -48,7 +48,7 @@ int LogManager::ResetLogFile() {
     return 0;
 }
 
-int LogManager::Redo(PersistDB &database) {
+int LogManager::Redo(PersistDB *database) {
     std::lock_guard<std::mutex> lockGuard(flushMutex);
     std::ifstream file;
     file.open(fileName, std::ios::binary);
@@ -62,7 +62,7 @@ int LogManager::Redo(PersistDB &database) {
         TxnLog txnLog;
         Deserialize(file, txnLog, delta);
         if(txnLog.op == OP::SET) {
-            database.Update(txnLog.id, txnLog.key, txnLog.val, txnLog.stamp);
+            database->Update(txnLog.id, txnLog.key, txnLog.val, txnLog.stamp);
         }
         std::cout << curPos << ", " << txnLog << std::endl;
         curPos += delta;

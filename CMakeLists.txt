@@ -74,6 +74,7 @@ include_directories(
 include_directories(src)
 
 set(MVCC_SOURCES
+        src/fwd.cpp
         src/parser.cpp
         src/database.cpp
         src/txn_manager.cpp

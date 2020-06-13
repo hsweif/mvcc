@@ -65,6 +65,11 @@ Operation Parser::ParseOperation(const std::string &line) const {
         CHECK(mOp != MathOp::INVALID);
         iss >> val;
         return Operation(OP::SET, key, val, mOp);
+    } else if (operation == "ABORT") {
+        return Operation(OP::ABORT);
+    } else if (operation == "DELETE") {
+        iss >> key;
+        return Operation(OP::DELETE, key);
     } else {
         return Operation(); // INVALID
     }

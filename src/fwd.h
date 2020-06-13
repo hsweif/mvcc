@@ -33,14 +33,11 @@ const static TxnId INSERT_NO_ID = std::numeric_limits<TxnId>::max();
 const static TxnId INVALID_ID = std::numeric_limits<TxnId>::max() - 1;
 
 static std::mutex timeStampLock;
-static TxnStamp curStamp = 0;
+extern TxnStamp curStamp;
 
 
-inline TxnStamp GetTxnStamp() {
-    std::lock_guard<std::mutex> lockGuard(timeStampLock);
-    TxnStamp stamp = curStamp++;
-    return stamp;
-}
+TxnStamp GetTxnStamp();
+void InitTxnStamp(TxnStamp prevStamp);
 
 inline uint64_t GetClock() {
     uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -55,6 +52,8 @@ enum class OP {
     COMMIT,
     SET,
     INSERT,
+    DELETE,
+    ABORT,
     INVALID
 };
 
@@ -74,6 +73,10 @@ struct Operation {
 
     Operation() : op(OP::INVALID), mathOp(MathOp::INVALID) {}
 
+    Operation(OP op): op(op) {
+        DCHECK(op == OP::ABORT);
+    }
+
     Operation(OP op, ValueType txn) : op(op), value(txn) {
         // Used for initialize the txn operation
         DCHECK(op == OP::BEGIN || op == OP::COMMIT);
@@ -81,8 +84,9 @@ struct Operation {
 
     Operation(OP op, KeyType key, ValueType value = 0, MathOp mOp = MathOp::INVALID) :
             op(op), key(std::move(key)), value(value), mathOp(mOp) {
-        if (op == OP::SET)
+        if (op == OP::SET) {
             DCHECK(mathOp != MathOp::INVALID);
+        }
     }
 };
 

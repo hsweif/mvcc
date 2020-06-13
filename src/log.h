@@ -15,7 +15,7 @@ public:
 
     int ResetLogFile();
     int Flush(const std::map<KeyType, TxnLog> &logs);
-    int Redo(PersistDB &database);
+    int Redo(PersistDB *database);
 
 private:
     std::string fileName;

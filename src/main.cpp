@@ -129,14 +129,22 @@ void TestMVCC() {
 }
 
 void TestPersistDB() {
-    std::string fileDir = "../data/";
-    auto database = std::make_shared<PersistDB>(fileDir + "testdb.bin");
-    if(database->LoadSnapshot()) {
-        std::shared_ptr<Database> base = std::dynamic_pointer_cast<Database>(database);
-        Preparation(fileDir, "data_prepare.txt", base);
-    }
+    std::string fileDir = "../judge/";
+    auto database = std::make_shared<PersistDB>(fileDir + "testdb.bin", fileDir + "log.bin");
+    std::shared_ptr<Database> base = std::dynamic_pointer_cast<Database>(database);
+    database->LoadSnapshot();
+    // database->ResetLog();
+    // Preparation(fileDir, "data_prepare.txt", base);
+    // const int threadNum = 4;
+    // std::thread threads[threadNum];
+    // for (int i = 0; i < threadNum; i++) {
+    //     threads[i] = std::thread(ExecuteTxns, fileDir, i + 1, database);
+    // }
+    // for (int i = 0; i < threadNum; i++) {
+    //     threads[i].join();
+    // }
+    // database->SaveSnapshot();
     std::cout << *database;
-    database->SaveSnapshot();
 }
 
 int main(int argc, char **argv) {

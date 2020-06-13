@@ -22,7 +22,8 @@ int LogList::GetNewestLog(TxnId id, TxnLog &txnLog, const TxnStamp &readStamp) c
     DCHECK_GE(curIndex, 0);
     DCHECK_LT(curIndex, maxItem);
     int cnt = 0;
-    while (logs[curIndex].id != INSERT_NO_ID && readStamp < logs[curIndex].stamp) {
+    const TxnStamp &logStamp = logs[curIndex].stamp;
+    while (logs[curIndex].id != INSERT_NO_ID && readStamp < logStamp) {
         if (curIndex == 0) {
             curIndex = maxItem;
         }
@@ -60,14 +61,20 @@ void Database::BeginTxn(TxnId id, bool includeSet) {
 MemoryDB::MemoryDB() {
 }
 
-int MemoryDB::Insert(TxnId id, const KeyType &key, const ValueType &val) {
+int Database::Insert(TxnId id, const KeyType &key, const ValueType &val) {
     // Should add mutex in following assignments
+    TxnStamp stamp = mvcc::GetTxnStamp();
+    return Insert(id, key, val, stamp);
+}
+
+int MemoryDB::Insert(TxnId id, const KeyType &key, const ValueType &val, TxnStamp stamp) {
     auto iter = mStorage.find(key);
     int index;
     if (iter == mStorage.end()) {
         // Not existed in the database before.
         mStorage[key] = LogList();
-        mStorage[key].AddData(TxnLog(id, key, val, mvcc::GetTxnStamp()), index);
+        TxnLog txnLog(id, key, val, stamp);
+        mStorage[key].AddData(txnLog, index);
         return 0;
     } else {
         // Fail. You cannot insert an existed key.
@@ -93,7 +100,8 @@ std::ostream &operator<<(std::ostream &output, const MemoryDB &memoryDB) {
         const KeyType &key = item.first;
         const LogList &logList = item.second;
         TxnLog readLog;
-        logList.GetNewestLog(INSERT_NO_ID, readLog, mvcc::GetTxnStamp());
+        int ret = logList.GetNewestLog(INSERT_NO_ID, readLog, mvcc::GetTxnStamp());
+        DCHECK_EQ(ret, 0);
         output << "  " << key << ": " << readLog.val << ", by txn_id " << readLog.id << ", at " << readLog.stamp
                << std::endl;
     }
@@ -123,8 +131,9 @@ int MemoryDB::Update(TxnId id, const KeyType &key, ValueType val, const TxnStamp
     return 0;
 }
 
-PersistDB::PersistDB(std::string fileName): fileName(std::move(fileName)) {
-    logManager = std::make_unique<LogManager>(this->fileName);
+
+PersistDB::PersistDB(std::string fileName, std::string logName): fileName(std::move(fileName)) {
+    logManager = std::make_unique<LogManager>(logName);
 }
 
 int PersistDB::SaveSnapshot() {
@@ -142,6 +151,7 @@ int PersistDB::SaveSnapshot() {
     const auto saveStamp = mvcc::GetTxnStamp();
     const uint32_t recordNum = mStorage.size();
     file.write(reinterpret_cast<const char *>(&recordNum), sizeof(recordNum));
+    file.write(reinterpret_cast<const char *>(&saveStamp), sizeof(saveStamp));
     for (const auto &item: mStorage) {
         const KeyType &key = item.first;
         const LogList &logList = item.second;
@@ -168,10 +178,14 @@ int PersistDB::LoadSnapshot() {
         return 1;
     }
     uint32_t recordNum;
+    TxnStamp cacheStamp;
     file.read(reinterpret_cast<char *>(&recordNum), sizeof(recordNum));
+    file.read(reinterpret_cast<char *>(&cacheStamp), sizeof(cacheStamp));
+    InitTxnStamp(cacheStamp);
     for (uint32_t i = 0; i < recordNum; i++) {
-        uint64_t stamp;
-        uint32_t id, keyLength;
+        TxnStamp stamp;
+        TxnId id;
+        uint32_t keyLength;
         ValueType value;
         file.read(reinterpret_cast<char *>(&stamp), sizeof(stamp));
         file.read(reinterpret_cast<char *>(&id), sizeof(id));
@@ -183,9 +197,10 @@ int PersistDB::LoadSnapshot() {
             key += c[k];
         }
         file.read(reinterpret_cast<char *>(&value), sizeof(value));
-        Insert(id, key, value);
+        Insert(id, key, value, stamp);
     }
     file.close();
+    // logManager->Redo(this);
     return 0;
 }
 
