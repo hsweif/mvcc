@@ -70,7 +70,7 @@ protected:
 
 class PersistDB : public MemoryDB {
 public:
-    explicit PersistDB(std::string fileName, std::string logName, int threadNum = 1);
+    explicit PersistDB(std::string fileName, std::string logName, int threadNum);
     int LoadSnapshot();
     int SaveSnapshot();
     int Commit(TxnId id, std::map<KeyType, TxnLog> &logs, TxnStamp &commitStamp, int threadIdx) override;

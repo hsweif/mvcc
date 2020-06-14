@@ -174,8 +174,8 @@ int PersistDB::SaveSnapshot() {
         file.write(c, keyLength);
         file.write(reinterpret_cast<const char *>(&resLog.val), sizeof(resLog.val));
     }
-    logManager->FlushMeta();
     file.close();
+    logManager->FlushMeta();
     return 0;
 }
 
@@ -212,7 +212,9 @@ int PersistDB::LoadSnapshot() {
             key += c[k];
         }
         file.read(reinterpret_cast<char *>(&value), sizeof(value));
-        Insert(id, key, value, stamp);
+        std::cout << "from checkpoint: " << id << " " << key << " " << value << std::endl;
+        int insertRet = Insert(id, key, value, stamp);
+        DCHECK_EQ(0, insertRet);
     }
     file.close();
     Redo();
@@ -249,13 +251,19 @@ int PersistDB::Redo() {
             Insert(log.id, log.key, log.val, log.stamp);
         }
     }
+    DCHECK_EQ(threadNum, logManager->threadNum);
+    for(int i = 0; i < threadNum; i ++) {
+        DCHECK_LE(executedId[i], logManager->txnPos[i]);
+        executedId[i] = logManager->txnPos[i];
+        printf("Executed id of %d: %d\n", i, executedId[i]);
+    }
     return 0;
 }
 
 int PersistDB::CheckSave() {
     std::lock_guard<std::mutex> lockGuard(commitLock);
     commitCount ++;
-    if(commitCount > 1000) {
+    if(commitCount > 10) {
         commitCount = 0;
         return SaveSnapshot();
     }

@@ -45,6 +45,9 @@ void ExecuteTxns(const std::string &fileDir, int threadIdx, const std::shared_pt
     std::vector<TxnResult> txnResults;
     printf("Thread %d begin first txn at%llu\n", index, GetClock());
     for (Txn &txn: txns) {
+        if(database->Executed(threadIdx, txn.txnId)) {
+            continue;
+        }
         TxnResult res;
         int ret = txnManager->Execute(txn, res);
         DCHECK_EQ(ret, 0);
@@ -109,18 +112,17 @@ void TestMVCC() {
 
 void TestPersistDB(bool redoFlag) {
     std::string fileDir = "../judge/";
-    auto database = std::make_shared<PersistDB>(fileDir + "testdb.bin", fileDir + "log.bin");
+    const int threadNum = 4;
+    auto database = std::make_shared<PersistDB>(fileDir + "testdb.bin", fileDir + "log.bin", threadNum);
     if(redoFlag) {
         database->LoadSnapshot();
         std::cout << *database;
-        return;
     }
     else {
         database->ResetLog();
         std::shared_ptr<Database> base = std::dynamic_pointer_cast<Database>(database);
         Preparation(fileDir, "data_prepare.txt", base);
     }
-    const int threadNum = 4;
     std::thread threads[threadNum];
     for (int i = 0; i < threadNum; i++) {
         threads[i] = std::thread(ExecuteTxns, fileDir, i, database);
