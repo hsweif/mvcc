@@ -244,7 +244,6 @@ int PersistDB::Redo() {
         return 1;
     }
     for (const auto &item: logs) {
-        std::cout << "Redo..." << std::endl;
         const KeyType &key = item.first;
         const TxnLog &log = item.second;
         if (Update(log.id, log.key, log.val, log.stamp)) {
@@ -263,7 +262,7 @@ int PersistDB::Redo() {
 int PersistDB::CheckSave() {
     std::lock_guard<std::mutex> lockGuard(commitLock);
     commitCount ++;
-    if(commitCount > 10) {
+    if(commitCount > 100) {
         commitCount = 0;
         return SaveSnapshot();
     }

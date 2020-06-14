@@ -109,7 +109,6 @@ int LogManager::Load(std::map<KeyType, TxnLog> &logs) {
     for (uint32_t i = 0; i < logNum; i++) {
         TxnLog txnLog;
         Deserialize(file, txnLog);
-        std::cout << i << " Txn info: " << txnLog << std::endl;
         // FIXME: log 裡面的 id 會重複且不保序
         if (i > checkPointPos) {
             DCHECK_NE(txnLog.id, INVALID_ID);

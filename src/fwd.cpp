@@ -15,8 +15,7 @@ TxnStamp GetTxnStamp() {
 }
 
 void InitTxnStamp(TxnStamp prevStamp) {
-    DCHECK_GT(prevStamp, curStamp);
-    curStamp = prevStamp;
+    curStamp = std::max(prevStamp, curStamp);
 }
 
 }

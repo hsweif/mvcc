@@ -114,15 +114,16 @@ void TestPersistDB(bool redoFlag) {
     std::string fileDir = "../judge/";
     const int threadNum = 4;
     auto database = std::make_shared<PersistDB>(fileDir + "testdb.bin", fileDir + "log.bin", threadNum);
+    auto beginStamp = GetClock();
     if(redoFlag) {
         database->LoadSnapshot();
-        std::cout << *database;
     }
     else {
         database->ResetLog();
         std::shared_ptr<Database> base = std::dynamic_pointer_cast<Database>(database);
         Preparation(fileDir, "data_prepare.txt", base);
     }
+    auto prepareStamp = GetClock();
     std::thread threads[threadNum];
     for (int i = 0; i < threadNum; i++) {
         threads[i] = std::thread(ExecuteTxns, fileDir, i, database);
@@ -131,7 +132,13 @@ void TestPersistDB(bool redoFlag) {
         threads[i].join();
     }
     database->SaveSnapshot();
+    auto endStamp = GetClock();
+    std::cout << std::endl;
+    std::cout << "-----------Final database status-------------" << std::endl;
     std::cout << *database;
+    std::cout << "- - - - - Time Spent - - - - - " << std::endl;
+    std::cout << "Preparation or Redo: " << (prepareStamp - beginStamp) << " ms" << std::endl;
+    std::cout << "Executed all transactions: " << (endStamp - prepareStamp) << " ms" << std::endl;
 }
 
 int main(int argc, char **argv) {
